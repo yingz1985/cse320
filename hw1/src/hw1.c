@@ -408,7 +408,8 @@ int read_header(AUDIO_HEADER *hp)
                 value = value <<8 ;
 
         }
-        if(element == 0)
+
+       /* if(element == 0)
         {
             hp->magic_number = value;
             //printf("%x\n",value);
@@ -438,13 +439,24 @@ int read_header(AUDIO_HEADER *hp)
         {
             hp->channels =value;
             //printf("%x\n",value);
-        }
+        }*/
+
+        *(&(hp->magic_number)+element ) = value;
+        /*
+        *   base_address starts at magic_number
+        *   adding element is equivalent to adding size(int) to the base address
+        *
+        *
+        */
+
+        //printf("%x\n",*(&(hp->magic_number)+element ));
 
     }
 
 
     if(hp->magic_number != 0x2e736e64)
     {
+
         return 0;
     }
     else if(hp->data_offset %8 != 0)
@@ -540,7 +552,26 @@ int write_header(AUDIO_HEADER *hp)
     return 1;
 }
 
+/*
+    helper function toString();
 
+*/
+void printString(char *string,unsigned int size)
+{
+
+    int count = 0;
+    /*(string+count)!='\0'
+        originally included
+        but null characters are part of the audio file
+    */
+    while(size>0)   //print to output even if there're nulls
+    {
+       printf("%c",*(string+count));
+       count++;
+       size--;
+    }
+
+}
 
 
 /**
@@ -558,7 +589,31 @@ int write_header(AUDIO_HEADER *hp)
  */
 int read_annotation(char *ap, unsigned int size)
 {
-    return 0;
+    int i;
+   /*
+    for(i = 0;i<24;i++)
+    {
+         getchar();
+
+        //disregard the first 24 bytes
+    }
+    */
+    for(i = 0;i<size;i++)
+    {
+
+        char character = getchar();
+        if(character==EOF) return 0;
+        *(ap+i) = character;
+        //printString(ap,size);
+        if(i==size-1  &&     character!='\0'  )
+        {
+            printf("bad");
+            return 0;
+        }
+    }
+
+    //printString(ap,size);
+    return 1;
 
 }
 
@@ -577,7 +632,8 @@ int read_annotation(char *ap, unsigned int size)
  */
 int write_annotation(char *ap, unsigned int size)
 {
-    return 0;
+    printString(ap,size);
+    return 1;
 }
 
 
@@ -601,7 +657,25 @@ int write_annotation(char *ap, unsigned int size)
  */
 int read_frame(int *fp, int channels, int bytes_per_sample)
 {
-    return 0;
+    //int size = channels * bytes_per_sample; //how many bytes in total to read
+    int channel = 0;
+    int byte = 0;   //need to process each sample as a set
+                    //will use nested for-loops
+
+    for(channel = 0; channel<channels;channel++)
+    {
+        signed int value = 0;
+        for(byte = 0;byte<bytes_per_sample;byte++)
+        {
+            value = value<<8;
+            value = value+getchar();
+        }
+        *(fp+channel) = value;
+        printf("value:%d\n",value);
+
+    }
+
+    return 1;
 }
 
 
@@ -622,6 +696,22 @@ int read_frame(int *fp, int channels, int bytes_per_sample)
  */
 int write_frame(int *fp, int channels, int bytes_per_sample)
 {
-    return 0;
+
+        int i,k;
+
+
+        for(i=0;i<channels;i++)
+        {
+            signed int value = *fp;
+            for(k=1;k<=bytes_per_sample;k++)
+            {
+                signed int temp = value>>8*(bytes_per_sample-k);
+                printf("%c",temp);
+            }
+             fp = fp+1; //move to next int
+
+        }
+
+    return 1;
 }
 

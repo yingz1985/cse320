@@ -18,14 +18,25 @@
 int main(int argc, char **argv)
 {
     //{0x2e736e64,800000,5,3,3,2}
-    AUDIO_HEADER p ;//= {AUDIO_MAGIC,24,140780,3,8000,2};
+    /*AUDIO_HEADER p ;//= {AUDIO_MAGIC,24,140780,3,8000,2};
     AUDIO_HEADER *hp = &p;
-    //int k =
+
     read_header(hp);
     write_header(hp);
-    //write_header(hp);
 
-    //printf("checked for header input %d\n",k);
+
+    int size = 32;
+    char* string = malloc(size*sizeof(char));
+    read_annotation(string,size);
+    write_annotation(string,size);
+    free(string);
+
+    int* num = malloc(size*sizeof(int));
+    read_frame(num,2,3);
+    write_frame(num,2,3);
+    free(num);
+
+*/
 
     if(!validargs(argc, argv))
         {
