@@ -33,7 +33,7 @@
  */
 
 //returns length of string passed in
-int stringLength(char *string)
+unsigned int stringLength(char *string)
 {
 
     int i = 1;
@@ -348,6 +348,21 @@ int validargs(int argc, char **argv)
 
 
 
+int appendString(char* output,char*input,int offset)
+{
+    int i = 0;
+    while(*(input+i)!='\0')//while not at the end of the input string, keep appending
+    {
+
+        *(output+offset) = *(input+i);
+        offset++;
+        i++;
+    }
+
+    return offset;
+
+}
+
 
 
 
@@ -367,6 +382,114 @@ int validargs(int argc, char **argv)
  * @return 1 if the recoding completed successfully, 0 otherwise.
  */
 int recode(char **argv) {
+    static AUDIO_HEADER hp;
+    //printf("begin method\n");
+    //static AUDIO_HEADER *hp = &p;//declare an empty audio header and pre-initialized to 0
+    int readHeader = read_header(&hp);
+    //printf("read header\n");
+    if(readHeader==0) return 0;
+    unsigned int bytes = 0;
+
+    int offset = hp.data_offset-sizeof(hp); //size of annotation
+    //printf("size of annotation is%d\n",offset);
+    if(offset>ANNOTATION_MAX) return 0;
+
+    int readAnnotation = read_annotation(input_annotation,offset);
+    if(readAnnotation==0) return 0; //not null terminated
+    //printf("annotation read successfully\n");
+
+    unsigned int size = hp.channels*hp.sample_rate;
+    if(hp.data_size<size) return 0;
+    if(hp.data_size % size != 0 && hp.data_size!=0xffffffff ) return 0;
+
+
+    if(global_options & (0x1L << 59)) // if -p is set, output annotation = input annotation
+    {
+        //offset = hp.data_offset-sizeof(hp);
+        //bytes = offset;
+        bytes = appendString(output_annotation,input_annotation,bytes);
+
+    }
+    else
+    {
+
+        bytes = 0;
+        int i = 0;
+
+
+        while(*(argv+i)!=NULL&& bytes<ANNOTATION_MAX)
+        {
+
+
+            if(bytes>ANNOTATION_MAX)  return 0; //error if annotation is too long
+            bytes = appendString(output_annotation,*(argv+i),bytes);
+            if(*(argv+i+1)!=NULL)
+                *(output_annotation+(bytes++))  = ' ';
+
+            i++;
+
+        }
+
+        if(bytes+1>=ANNOTATION_MAX) return 0;
+        if(offset==0)
+            *(output_annotation+(bytes++)) = '\0'; //null terminated
+        else
+            *(output_annotation+(bytes++)) = '\n';
+
+
+        bytes = appendString(output_annotation,input_annotation,bytes);
+
+        hp.data_offset = bytes;
+        while(hp.data_offset%8!=0)
+        {
+            if(bytes+1>=ANNOTATION_MAX) return 0;
+            *(output_annotation+(bytes++)) = '\0';
+            hp.data_offset = (bytes+24);
+        }
+
+        //write_header(&hp);
+        //write_annotation(output_annotation,bytes);
+
+    }
+
+    if(global_options & (0x1L << 62))//if speed up oeration is set
+    {
+        //read every n'th frame
+
+/*
+        unsigned long i = 0x3ffL & global_options   ; //factor bits retrieved
+        unsigned long k;
+        unsigned long counter ;
+        if(i>0) counter = i;
+        else counter = 1;
+
+        for(k=1;i<=hp.data_size;k++)
+        {
+            if(k % counter == 0)
+            {
+                //char* address = input_frame;
+                //read_frame(address,hp.channels,hp.sample_rate);
+            }
+        }*/
+    }
+    else
+    {
+
+    }
+
+    if(global_options & (0x1L << 61))//if slow down operation is set
+    {
+
+    }
+    else
+    {
+
+    }
+
+    write_header(&hp);    //will write in the end
+    write_annotation(output_annotation,offset);
+
+
     return 0;
 }
 
@@ -492,19 +615,19 @@ int read_header(AUDIO_HEADER *hp)
 int write_header(AUDIO_HEADER *hp)
 {
      unsigned int *pointer = &(hp->magic_number); //grab the address of the first element
-     int k;
-     //for(i = 0; i<6; i++)
-     //{
+     int i, k;
+     for(i = 0; i<6; i++)
+     {
         int value = *pointer; //grab the first integer value
         for(k=1;k<=4;k++)
         {
            unsigned int temp = value>>8*(4-k);
            printf("%c",temp);
         }
-       // pointer = pointer+1;
+        pointer = pointer+1;
 
-     //}
-
+     }
+/*
      pointer = &(hp->data_offset);
 
         value = *pointer;
@@ -547,7 +670,7 @@ int write_header(AUDIO_HEADER *hp)
            unsigned int temp = value>>8*(4-k);
            printf("%c",temp);
         }
-
+*/
 
     return 1;
 }
@@ -566,6 +689,7 @@ void printString(char *string,unsigned int size)
     */
     while(size>0)   //print to output even if there're nulls
     {
+
        printf("%c",*(string+count));
        count++;
        size--;
