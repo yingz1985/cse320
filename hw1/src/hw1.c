@@ -398,16 +398,21 @@ int recode(char **argv) {
     if(readAnnotation==0) return 0; //not null terminated
     //printf("annotation read successfully\n");
 
-    unsigned int size = hp.channels*hp.sample_rate;
-    if(hp.data_size<size) return 0;
-    if(hp.data_size % size != 0 && hp.data_size!=0xffffffff ) return 0;
-
 
     if(global_options & (0x1L << 59)) // if -p is set, output annotation = input annotation
     {
-        //offset = hp.data_offset-sizeof(hp);
+        offset = hp.data_offset-sizeof(hp); //offset = size of annotation
         //bytes = offset;
         bytes = appendString(output_annotation,input_annotation,bytes);
+
+            while(hp.data_offset%8!=0)
+        {
+            if(bytes+1>=ANNOTATION_MAX) return 0;
+            *(output_annotation+(bytes++)) = '\0';
+            hp.data_offset = (bytes+24);
+        }
+        write_header(&hp);    //will write in the end
+        write_annotation(output_annotation,bytes);
 
     }
     else
@@ -440,37 +445,53 @@ int recode(char **argv) {
         bytes = appendString(output_annotation,input_annotation,bytes);
 
         hp.data_offset = bytes;
-        while(hp.data_offset%8!=0)
+        while(hp.data_offset%8!=0 || hp.data_offset<32)
         {
             if(bytes+1>=ANNOTATION_MAX) return 0;
             *(output_annotation+(bytes++)) = '\0';
             hp.data_offset = (bytes+24);
         }
 
-        //write_header(&hp);
-        //write_annotation(output_annotation,bytes);
+
+        write_header(&hp);
+        write_annotation(output_annotation,bytes);
 
     }
 
     if(global_options & (0x1L << 62))//if speed up oeration is set
     {
         //read every n'th frame
+        unsigned int size = hp.channels*(hp.encoding-1);
+        //printf("frame size: %u",size);
 
-/*
-        unsigned long i = 0x3ffL & global_options   ; //factor bits retrieved
-        unsigned long k;
-        unsigned long counter ;
-        if(i>0) counter = i;
-        else counter = 1;
+        if(hp.data_size % size != 0 && hp.data_size!=0xffffffff ) return 0;
 
-        for(k=1;i<=hp.data_size;k++)
+        unsigned int i = ((global_options<<6)>>54)+1;
+        //(0x3ffL & global_options)  +1 ; //factor bits retrieved
+        //printf("factor: %u",i);
+        unsigned int k = 1;
+         //140780 printf("data size: %u",hp.data_size);
+
+        while(k<(hp.data_size/size))
         {
-            if(k % counter == 0)
+
+            int u = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
+            if(u==0) return 0;
+
+            if( k % i == 0)
             {
-                //char* address = input_frame;
-                //read_frame(address,hp.channels,hp.sample_rate);
+            //int* address = input_frame;
+              //int m  =
+               write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+             // if(m!=0) write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+             // else return 0;
+
             }
-        }*/
+
+            k++;
+
+
+        }
     }
     else
     {
@@ -486,8 +507,6 @@ int recode(char **argv) {
 
     }
 
-    write_header(&hp);    //will write in the end
-    write_annotation(output_annotation,offset);
 
 
     return 0;
@@ -788,14 +807,20 @@ int read_frame(int *fp, int channels, int bytes_per_sample)
 
     for(channel = 0; channel<channels;channel++)
     {
-        signed int value = 0;
+        int value = 0;
         for(byte = 0;byte<bytes_per_sample;byte++)
         {
+            char c = getchar();
+           /* if(c==EOF)
+            {
+                printf("eof");
+                return 0;
+            }*/
             value = value<<8;
-            value = value+getchar();
+            value = value+c;
         }
         *(fp+channel) = value;
-        printf("value:%d\n",value);
+        //printf("value:%d\n",value);
 
     }
 
@@ -826,13 +851,14 @@ int write_frame(int *fp, int channels, int bytes_per_sample)
 
         for(i=0;i<channels;i++)
         {
-            signed int value = *fp;
+            int value = *(fp+i);
+
             for(k=1;k<=bytes_per_sample;k++)
             {
-                signed int temp = value>>8*(bytes_per_sample-k);
+                int temp = value>>(8*(bytes_per_sample-k));
                 printf("%c",temp);
             }
-             fp = fp+1; //move to next int
+              //move to next int
 
         }
 
