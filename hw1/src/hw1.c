@@ -363,6 +363,38 @@ int appendString(char* output,char*input,int offset)
 
 }
 
+void relocateString(char* output, char* input, int size)
+{
+    int i = 0;
+    while(i<size)//while not at the end of the input string, keep appending
+    {
+        *(output+i) = *(input+i);
+
+        i++;
+    }
+
+
+
+}
+/*
+    this method should take two input arrays and merge them
+    resulted array will be output
+    size = number of bytes it will operate only
+    size should always be channels*encoding
+    n = factor
+    k = number going up to n-1
+
+*/
+void mergeFrame(int* output,int* input1,int*input2,int size,int k,int n)
+{
+    int i = 0;
+    while(i<size)
+    {
+        *(output+i) = *(input1+i) + ((*(input2+i)-*(input1+i))*k/n);
+        i++;
+    }
+
+}
 
 
 
@@ -397,6 +429,47 @@ int recode(char **argv) {
     int readAnnotation = read_annotation(input_annotation,offset);
     if(readAnnotation==0) return 0; //not null terminated
     //printf("annotation read successfully\n");
+
+    unsigned int size = hp.channels*(hp.encoding-1);
+        //printf("frame size: %u",size);
+    if(hp.data_size % size != 0) return 0;
+    //if there're incomplete frames then it's considered an error and do not proceed
+
+    unsigned int i = ((global_options<<6)>>54) +1;  //factor
+    unsigned int frame = (hp.data_size/size);
+
+
+
+    if(((0x1L << 62) & global_options)&&hp.data_size!=0xffffffff)
+    {
+
+        //hp.data_size/size = # of frames
+        unsigned int p = (hp.data_size/size)%i;
+        //printf("divisible:%u",p);
+
+        if(p != 0)
+        {
+            //printf("not a multiple");
+            hp.data_size =  (hp.data_size/i) + (p*size/i) ;
+        }
+        else
+        {
+          //  printf("is a multiple");
+            hp.data_size =  hp.data_size/i;
+        }
+    }
+
+    if(global_options & (0x1L << 61)&&hp.data_size!=0xffffffff)
+    {
+
+        unsigned int frameAfterInsertion = (frame)+ (i-1)*(frame-1);
+        //between each frame there's n-1 extra frames
+        hp.data_size = frameAfterInsertion*size;
+    }
+
+
+
+
 
 
     if(global_options & (0x1L << 59)) // if -p is set, output annotation = input annotation
@@ -436,9 +509,9 @@ int recode(char **argv) {
         }
 
         if(bytes+1>=ANNOTATION_MAX) return 0;
-        if(offset==0)
-            *(output_annotation+(bytes++)) = '\0'; //null terminated
-        else
+       // if(offset==0)
+         //   *(output_annotation+(bytes++)) = '\0'; //null terminated
+        //else
             *(output_annotation+(bytes++)) = '\n';
 
 
@@ -461,18 +534,19 @@ int recode(char **argv) {
     if(global_options & (0x1L << 62))//if speed up oeration is set
     {
         //read every n'th frame
-        unsigned int size = hp.channels*(hp.encoding-1);
+        //unsigned int size = hp.channels*(hp.encoding-1);
         //printf("frame size: %u",size);
 
-        if(hp.data_size % size != 0 && hp.data_size!=0xffffffff ) return 0;
+        //if(hp.data_size % size != 0 && hp.data_size!=0xffffffff ) return 0;
 
         unsigned int i = ((global_options<<6)>>54)+1;
         //(0x3ffL & global_options)  +1 ; //factor bits retrieved
         //printf("factor: %u",i);
-        unsigned int k = 1;
-         //140780 printf("data size: %u",hp.data_size);
-
-        while(k<(hp.data_size/size))
+        unsigned int k = 0;
+         //140780|le
+        //printf("data size: %u",hp.data_size);
+        //while there's more frame
+        while(k<(hp.data_size*i/size)) // divide by size of data_size not already divided
         {
 
             int u = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
@@ -486,30 +560,69 @@ int recode(char **argv) {
              // if(m!=0) write_frame((int*)output_frame,hp.channels,hp.encoding-1);
              // else return 0;
 
+
             }
 
             k++;
 
 
         }
-    }
-    else
-    {
 
     }
+
 
     if(global_options & (0x1L << 61))//if slow down operation is set
     {
+        unsigned int i = ((global_options<<6)>>54)+1;
 
-    }
-    else
-    {
-
-    }
+        unsigned int k = 0;
 
 
+        //between each frame there's n-1 extra frames
 
-    return 0;
+        int prev;
+        while(k<frame-1) // divide by size of data_size not already divided
+        {
+            if(k!=0)
+            {
+                relocateString(previous_frame,input_frame,8);
+            }
+            else
+            {
+                prev = read_frame((int*) previous_frame,hp.channels,hp.encoding-1);
+            }
+            int current = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
+            if(prev==0 || current==0) return 0;
+
+
+            int numAdditionalFrames = i-1;
+            int count;
+            write_frame((int*)previous_frame,hp.channels,hp.encoding-1);
+
+            for(count = 1;count<=numAdditionalFrames;count++)
+            {
+
+                mergeFrame((int*)output_frame,(int*)previous_frame,(int*)input_frame,2,count,i);
+                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+            }
+            //write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+
+
+            k++;
+
+
+        }
+
+        write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+
+
+        }
+
+
+
+
+
+    return 1;
 }
 
 
