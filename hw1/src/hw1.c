@@ -397,6 +397,38 @@ void mergeFrame(int* output,int* input1,int*input2,int size,int k,int n)
 }
 
 
+void encrypt(int* output,int* input,int encoding1,int encoding2)
+{
+
+    unsigned int byte = 0;
+
+
+        for(byte = 0;byte<2;byte++)
+        {
+            int encoding;
+            if(byte==0)
+                encoding = encoding1;
+            else
+                encoding = encoding2;
+
+            //int k = (*(input+byte))^encoding;
+            *(output+byte) = (*(input+byte))^encoding;
+
+            //printf("value:%d",k);
+
+
+        }
+
+}
+
+void cryptInt(int* output,int*input, int encoding)
+{
+
+    *(output) = (*(input))^encoding;
+
+}
+
+
 
 
 
@@ -438,19 +470,24 @@ int recode(char **argv) {
     unsigned int i = ((global_options<<6)>>54) +1;  //factor
     unsigned int frame = (hp.data_size/size);
 
-
+    int c;
 
     if(((0x1L << 62) & global_options)&&hp.data_size!=0xffffffff)
     {
 
         //hp.data_size/size = # of frames
         unsigned int p = (hp.data_size/size)%i;
+
         //printf("divisible:%u",p);
 
         if(p != 0)
         {
-            //printf("not a multiple");
-            hp.data_size =  (hp.data_size/i) + (p*size/i) ;
+
+                hp.data_size =  ((hp.data_size/size/i) + 1)*size;
+
+            //(p*size/i) ;
+
+
         }
         else
         {
@@ -474,18 +511,21 @@ int recode(char **argv) {
 
     if(global_options & (0x1L << 59)) // if -p is set, output annotation = input annotation
     {
-        offset = hp.data_offset-sizeof(hp); //offset = size of annotation
+        offset = hp.data_offset-24; //offset = size of annotation
         //bytes = offset;
-        bytes = appendString(output_annotation,input_annotation,bytes);
+
+        //printf("offset:%u",offset);
+        //read_annotation(input_annotation,offset);
+        /*bytes = appendString(output_annotation,input_annotation,bytes);
 
             while(hp.data_offset%8!=0)
         {
             if(bytes+1>=ANNOTATION_MAX) return 0;
             *(output_annotation+(bytes++)) = '\0';
             hp.data_offset = (bytes+24);
-        }
+        }*/
         write_header(&hp);    //will write in the end
-        write_annotation(output_annotation,bytes);
+        write_annotation(input_annotation,offset);
 
     }
     else
@@ -546,6 +586,7 @@ int recode(char **argv) {
          //140780|le
         //printf("data size: %u",hp.data_size);
         //while there's more frame
+        c = 0;
         while(k<(hp.data_size*i/size)) // divide by size of data_size not already divided
         {
 
@@ -556,6 +597,7 @@ int recode(char **argv) {
             {
             //int* address = input_frame;
               //int m  =
+                c+=(hp.channels*(hp.encoding-1));
                write_frame((int*)input_frame,hp.channels,hp.encoding-1);
              // if(m!=0) write_frame((int*)output_frame,hp.channels,hp.encoding-1);
              // else return 0;
@@ -604,6 +646,7 @@ int recode(char **argv) {
 
                 mergeFrame((int*)output_frame,(int*)previous_frame,(int*)input_frame,2,count,i);
                 write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+                //c+=hp.channels*(hp.encoding-1);
             }
             //write_frame((int*)input_frame,hp.channels,hp.encoding-1);
 
@@ -617,10 +660,42 @@ int recode(char **argv) {
 
 
         }
+        if(global_options & (0x1L << 60))   //-c
+        {
+            unsigned int key = global_options & 0xFFFFFFFF;
+
+            mysrand(key);
+
+            int count;
+
+            for(count = 0;count<hp.data_size/size;count++)
+            {
+
+                int rand = myrand32();
+                int rand1 = myrand32();
+                //printf("rand:%drand1:%d",rand,rand1);
+
+                read_frame((int*) input_frame,hp.channels,hp.encoding-1);
+
+                encrypt((int*)output_frame,(int*)input_frame,rand,rand1);
+
+                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+
+
+               /* read_frame((int*) input_frame,1,hp.encoding-1); //read an integer
+                //encrypt((int*)output_frame,(int*)input_frame,rand,rand1);
+                cryptInt((int*)output_frame,(int*)input_frame,rand);
+                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+                */
+
+            }
+
+
+        }
 
 
 
-
+       // printf("bytes:%u",c);
 
     return 1;
 }
@@ -863,7 +938,7 @@ int read_annotation(char *ap, unsigned int size)
         //printString(ap,size);
         if(i==size-1  &&     character!='\0'  )
         {
-            printf("bad");
+            //printf("bad");
             return 0;
         }
     }
