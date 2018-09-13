@@ -397,38 +397,48 @@ void mergeFrame(int* output,int* input1,int*input2,int size,int k,int n)
 }
 
 
-void encrypt(int* output,int* input,int encoding1,int encoding2)
+void encrypt(int* output,int* input,int channels)
 {
 
-    unsigned int byte = 0;
+    int num;
 
 
-        for(byte = 0;byte<2;byte++)
+        for(num = 0;num<channels;num++)
         {
-            int encoding;
-            if(byte==0)
-                encoding = encoding1;
-            else
-                encoding = encoding2;
 
-            //int k = (*(input+byte))^encoding;
-            *(output+byte) = (*(input+byte))^encoding;
-
-            //printf("value:%d",k);
+            *(output+num) = (*(input+num)) ^ myrand32();
+            //printf("input:%u",(*(input+byte)));
 
 
         }
 
 }
 
-void cryptInt(int* output,int*input, int encoding)
+
+int read_frame_unsigned(int *fp, int channels, int bytes_per_sample)
 {
+    //int size = channels * bytes_per_sample; //how many bytes in total to read
+    int channel = 0;
+    int byte = 0;   //need to process each sample as a set
+                    //will use nested for-loops
 
-    *(output) = (*(input))^encoding;
+    for(channel = 0; channel<channels;channel++)
+    {
+        int value = 0;
+        for(byte = 0;byte<bytes_per_sample;byte++)
+        {
+           unsigned char c = getchar();
 
+            value = value<<8;
+            value = value+c;
+
+        }
+        *(fp+channel) = value;
+
+    }
+
+    return 1;
 }
-
-
 
 
 
@@ -458,9 +468,12 @@ int recode(char **argv) {
     //printf("size of annotation is%d\n",offset);
     if(offset>ANNOTATION_MAX) return 0;
 
-    int readAnnotation = read_annotation(input_annotation,offset);
-    if(readAnnotation==0) return 0; //not null terminated
+    if(offset>0)
+    {
+        int readAnnotation = read_annotation(input_annotation,offset);
+        if(readAnnotation==0) return 0; //not null terminated
     //printf("annotation read successfully\n");
+    }
 
     unsigned int size = hp.channels*(hp.encoding-1);
         //printf("frame size: %u",size);
@@ -654,16 +667,16 @@ int recode(char **argv) {
             k++;
 
 
-        }
+            }
 
-        write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+            write_frame((int*)input_frame,hp.channels,hp.encoding-1);
 
 
         }
         if(global_options & (0x1L << 60))   //-c
         {
             unsigned int key = global_options & 0xFFFFFFFF;
-
+           // printf("key%u",key);
             mysrand(key);
 
             int count;
@@ -671,22 +684,16 @@ int recode(char **argv) {
             for(count = 0;count<hp.data_size/size;count++)
             {
 
-                int rand = myrand32();
-                int rand1 = myrand32();
-                //printf("rand:%drand1:%d",rand,rand1);
+
 
                 read_frame((int*) input_frame,hp.channels,hp.encoding-1);
+                //printf("%d",*(int*) input_frame);
 
-                encrypt((int*)output_frame,(int*)input_frame,rand,rand1);
+                encrypt((int*)output_frame,(int*)input_frame,hp.channels);
 
                 write_frame((int*)output_frame,hp.channels,hp.encoding-1);
 
 
-               /* read_frame((int*) input_frame,1,hp.encoding-1); //read an integer
-                //encrypt((int*)output_frame,(int*)input_frame,rand,rand1);
-                cryptInt((int*)output_frame,(int*)input_frame,rand);
-                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
-                */
 
             }
 
@@ -998,14 +1005,30 @@ int read_frame(int *fp, int channels, int bytes_per_sample)
         int value = 0;
         for(byte = 0;byte<bytes_per_sample;byte++)
         {
-            char c = getchar();
+
+            if(byte == 0)
+            {
+
+                char c = getchar();
+                value = value+c;
+
+            }
+            else
+            {
+                unsigned char c = getchar();
+                value = value<<8;
+            // printf("val:%d",value);
+                value = value+c;
+            }
            /* if(c==EOF)
             {
                 printf("eof");
                 return 0;
             }*/
-            value = value<<8;
-            value = value+c;
+
+            //printf("char:%c",c);
+
+            //printf("val:%d",value);
         }
         *(fp+channel) = value;
         //printf("value:%d\n",value);
@@ -1014,6 +1037,10 @@ int read_frame(int *fp, int channels, int bytes_per_sample)
 
     return 1;
 }
+
+
+
+
 
 
 
@@ -1044,7 +1071,8 @@ int write_frame(int *fp, int channels, int bytes_per_sample)
             for(k=1;k<=bytes_per_sample;k++)
             {
                 int temp = value>>(8*(bytes_per_sample-k));
-                printf("%c",temp);
+                putchar(temp);
+                //printf("%c",temp);
             }
               //move to next int
 
