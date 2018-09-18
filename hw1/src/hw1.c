@@ -415,33 +415,6 @@ void encrypt(int* output,int* input,int channels)
 }
 
 
-int read_frame_unsigned(int *fp, int channels, int bytes_per_sample)
-{
-    //int size = channels * bytes_per_sample; //how many bytes in total to read
-    int channel = 0;
-    int byte = 0;   //need to process each sample as a set
-                    //will use nested for-loops
-
-    for(channel = 0; channel<channels;channel++)
-    {
-        int value = 0;
-        for(byte = 0;byte<bytes_per_sample;byte++)
-        {
-           unsigned char c = getchar();
-
-            value = value<<8;
-            value = value+c;
-
-        }
-        *(fp+channel) = value;
-
-    }
-
-    return 1;
-}
-
-
-
 
 /**
  * @brief  Recodes a Sun audio (.au) format audio stream, reading the stream
@@ -537,8 +510,8 @@ int recode(char **argv) {
             *(output_annotation+(bytes++)) = '\0';
             hp.data_offset = (bytes+24);
         }*/
-        write_header(&hp);    //will write in the end
-        write_annotation(input_annotation,offset);
+        if(write_header(&hp)==0) return 0;    //will write in the end
+        if(write_annotation(input_annotation,offset)==0) return 0;
 
     }
     else
@@ -568,7 +541,11 @@ int recode(char **argv) {
             *(output_annotation+(bytes++)) = '\n';
 
 
-        bytes = appendString(output_annotation,input_annotation,bytes);
+        //bytes = appendString(output_annotation,input_annotation,bytes);
+
+        relocateString(output_annotation+bytes,input_annotation,offset);
+        bytes+= offset;
+
 
         hp.data_offset = bytes;
         while(hp.data_offset%8!=0 || hp.data_offset<32)
@@ -579,8 +556,8 @@ int recode(char **argv) {
         }
 
 
-        write_header(&hp);
-        write_annotation(output_annotation,bytes);
+        if(write_header(&hp)==0) return 0;
+        if(write_annotation(output_annotation,bytes)==0) return 0;
 
     }
 
@@ -600,7 +577,7 @@ int recode(char **argv) {
         //printf("data size: %u",hp.data_size);
         //while there's more frame
         c = 0;
-        while(k<(hp.data_size*i/size)) // divide by size of data_size not already divided
+        while(k<frame) // divide by size of data_size not already divided
         {
 
             int u = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
@@ -611,7 +588,8 @@ int recode(char **argv) {
             //int* address = input_frame;
               //int m  =
                 c+=(hp.channels*(hp.encoding-1));
-               write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+               if(write_frame((int*)input_frame,hp.channels,hp.encoding-1)==0)
+                    return 0;
              // if(m!=0) write_frame((int*)output_frame,hp.channels,hp.encoding-1);
              // else return 0;
 
@@ -652,13 +630,15 @@ int recode(char **argv) {
 
             int numAdditionalFrames = i-1;
             int count;
-            write_frame((int*)previous_frame,hp.channels,hp.encoding-1);
+            if(write_frame((int*)previous_frame,hp.channels,hp.encoding-1)==0)
+                return 0;
 
             for(count = 1;count<=numAdditionalFrames;count++)
             {
 
                 mergeFrame((int*)output_frame,(int*)previous_frame,(int*)input_frame,2,count,i);
-                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+                if(write_frame((int*)output_frame,hp.channels,hp.encoding-1)==0)
+                    return 0;
                 //c+=hp.channels*(hp.encoding-1);
             }
             //write_frame((int*)input_frame,hp.channels,hp.encoding-1);
@@ -669,7 +649,8 @@ int recode(char **argv) {
 
             }
 
-            write_frame((int*)input_frame,hp.channels,hp.encoding-1);
+            if(write_frame((int*)input_frame,hp.channels,hp.encoding-1)==0)
+                return 0;
 
 
         }
@@ -686,12 +667,14 @@ int recode(char **argv) {
 
 
 
-                read_frame((int*) input_frame,hp.channels,hp.encoding-1);
+                if(read_frame((int*) input_frame,hp.channels,hp.encoding-1)==0)
+                    return 0;
                 //printf("%d",*(int*) input_frame);
 
                 encrypt((int*)output_frame,(int*)input_frame,hp.channels);
 
-                write_frame((int*)output_frame,hp.channels,hp.encoding-1);
+                if(write_frame((int*)output_frame,hp.channels,hp.encoding-1)==0)
+                    return 0;
 
 
 
@@ -738,8 +721,9 @@ int read_header(AUDIO_HEADER *hp)
         value = 0;
         for(byte = 1;byte<=4;byte++)
         {
-
-            unsigned char part = getchar();
+            int num = getchar();
+            unsigned char part = num & 0xff;
+            if(num==EOF) return 0;
             value = value + part;
             if(byte!=4)
                 value = value <<8 ;
@@ -836,7 +820,9 @@ int write_header(AUDIO_HEADER *hp)
         for(k=1;k<=4;k++)
         {
            unsigned int temp = value>>8*(4-k);
-           printf("%c",temp);
+          // printf("%c",temp);
+           int success = putchar(temp);
+           if(success==EOF) return 0;
         }
         pointer = pointer+1;
 
@@ -893,7 +879,7 @@ int write_header(AUDIO_HEADER *hp)
     helper function toString();
 
 */
-void printString(char *string,unsigned int size)
+int printString(char *string,unsigned int size)
 {
 
     int count = 0;
@@ -904,10 +890,13 @@ void printString(char *string,unsigned int size)
     while(size>0)   //print to output even if there're nulls
     {
 
-       printf("%c",*(string+count));
+       //printf("%c",*(string+count));
+       int success = putchar(*(string+count));
+       if(success == EOF )  return 0;
        count++;
        size--;
     }
+    return 1;//successful
 
 }
 
@@ -939,8 +928,11 @@ int read_annotation(char *ap, unsigned int size)
     for(i = 0;i<size;i++)
     {
 
-        char character = getchar();
-        if(character==EOF) return 0;
+        //char character = getchar();
+        int m = getchar();
+        char character =   m & 0xff;
+
+        if(m==EOF) return 0;
         *(ap+i) = character;
         //printString(ap,size);
         if(i==size-1  &&     character!='\0'  )
@@ -970,8 +962,7 @@ int read_annotation(char *ap, unsigned int size)
  */
 int write_annotation(char *ap, unsigned int size)
 {
-    printString(ap,size);
-    return 1;
+    return printString(ap,size);
 }
 
 
@@ -1009,13 +1000,27 @@ int read_frame(int *fp, int channels, int bytes_per_sample)
             if(byte == 0)
             {
 
-                char c = getchar();
+                //char c = getchar();
+                int m = getchar();
+                char c =   m & 0xff;
+                if(m==EOF)
+                {
+                   // printf("error in read frame most sig");
+                    return 0;
+                }
                 value = value+c;
 
             }
             else
             {
-                unsigned char c = getchar();
+                //unsigned char c = getchar();
+                int m = getchar();
+                unsigned char c =   m & 0xff;
+                if(m==EOF)
+                {
+                        //printf("error in read frame");
+                        return 0;
+                }
                 value = value<<8;
             // printf("val:%d",value);
                 value = value+c;
@@ -1071,7 +1076,12 @@ int write_frame(int *fp, int channels, int bytes_per_sample)
             for(k=1;k<=bytes_per_sample;k++)
             {
                 int temp = value>>(8*(bytes_per_sample-k));
-                putchar(temp);
+
+                if(putchar(temp)==EOF)
+                    {
+                        //printf("error in write_frame");
+                        return 0;
+                    }
                 //printf("%c",temp);
             }
               //move to next int
