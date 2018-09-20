@@ -32,11 +32,18 @@ int main(int argc, char **argv)
     free(string);
 
     int* num = malloc(size*sizeof(int));
-    read_frame(num,2,3);
-    write_frame(num,2,3);
+    int i = 0;
+    for(i=0;i<140780;)0
+    {
+        read_frame(num,2,3);
+        write_frame(num,2,3);
+        i+=6;
+    }
     free(num);
 
 */
+
+
 
     if(!validargs(argc, argv))
         {
@@ -47,7 +54,9 @@ int main(int argc, char **argv)
     if(global_options & (0x1L << 63)) {
         USAGE(*argv, EXIT_SUCCESS);
     }
-
+    //printf("%d",
+    if(recode(argv)==0)
+        printf("ended prematurely");
     return EXIT_SUCCESS;
 }
 

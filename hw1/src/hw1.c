@@ -534,7 +534,7 @@ int recode(char **argv) {
 
         }
 
-        if(bytes+1>=ANNOTATION_MAX) return 0;
+        if(bytes+1>ANNOTATION_MAX) return 0;
        // if(offset==0)
          //   *(output_annotation+(bytes++)) = '\0'; //null terminated
         //else
@@ -542,7 +542,7 @@ int recode(char **argv) {
 
 
         //bytes = appendString(output_annotation,input_annotation,bytes);
-
+        if(bytes+offset>ANNOTATION_MAX) return 0;
         relocateString(output_annotation+bytes,input_annotation,offset);
         bytes+= offset;
 
@@ -550,7 +550,7 @@ int recode(char **argv) {
         hp.data_offset = bytes;
         while(hp.data_offset%8!=0 || hp.data_offset<32)
         {
-            if(bytes+1>=ANNOTATION_MAX) return 0;
+            if(bytes+1>ANNOTATION_MAX) return 0;
             *(output_annotation+(bytes++)) = '\0';
             hp.data_offset = (bytes+24);
         }
