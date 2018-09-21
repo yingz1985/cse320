@@ -450,7 +450,7 @@ int recode(char **argv) {
 
     unsigned int size = hp.channels*(hp.encoding-1);
         //printf("frame size: %u",size);
-    if(hp.data_size % size != 0) return 0;
+    if(hp.data_size % size != 0  && hp.data_size!=0xffffffff ) return 0;
     //if there're incomplete frames then it's considered an error and do not proceed
 
     unsigned int i = ((global_options<<6)>>54) +1;  //factor
@@ -577,11 +577,15 @@ int recode(char **argv) {
         //printf("data size: %u",hp.data_size);
         //while there's more frame
         c = 0;
-        while(k<frame) // divide by size of data_size not already divided
+        while(k<frame || hp.data_size==0xffffffff) // divide by size of data_size not already divided
         {
 
             int u = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
-            if(u==0) return 0;
+            if(u==0)
+            {
+                    if(hp.data_size==0xffffffff)    return 1;
+                    return 0;
+            }
 
             if( k % i == 0)
             {
@@ -614,7 +618,7 @@ int recode(char **argv) {
         //between each frame there's n-1 extra frames
 
         int prev;
-        while(k<frame-1) // divide by size of data_size not already divided
+        while(k<frame-1 || hp.data_size==0xffffffff) // divide by size of data_size not already divided
         {
             if(k!=0)
             {
@@ -625,7 +629,11 @@ int recode(char **argv) {
                 prev = read_frame((int*) previous_frame,hp.channels,hp.encoding-1);
             }
             int current = read_frame((int*) input_frame,hp.channels,hp.encoding-1);
-            if(prev==0 || current==0) return 0;
+            if(prev==0 || current==0)
+            {
+                if(hp.data_size==0xffffffff)    return 1;
+                return 0;
+            }
 
 
             int numAdditionalFrames = i-1;
@@ -660,15 +668,18 @@ int recode(char **argv) {
            // printf("key%u",key);
             mysrand(key);
 
-            int count;
+            int count= 0;
 
-            for(count = 0;count<hp.data_size/size;count++)
+            //for(count = 0;count<hp.data_size/size;count++)
+            //{
+
+            while(count < hp.data_size/size || hp.data_size==0xffffffff)
             {
-
-
-
                 if(read_frame((int*) input_frame,hp.channels,hp.encoding-1)==0)
+                {
+                    if(hp.data_size==0xffffffff)    return 1;
                     return 0;
+                }
                 //printf("%d",*(int*) input_frame);
 
                 encrypt((int*)output_frame,(int*)input_frame,hp.channels);
@@ -676,7 +687,7 @@ int recode(char **argv) {
                 if(write_frame((int*)output_frame,hp.channels,hp.encoding-1)==0)
                     return 0;
 
-
+                count++;
 
             }
 
