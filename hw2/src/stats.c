@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
+#include "error.h"
 #include "global.h"
 #include "gradedb.h"
 #include "stats.h"
@@ -280,8 +281,7 @@ Course *c;
  * to fill in the moments and quantiles.
  */
 
-void do_moments(sp)
-Stats *sp;
+void do_moments(Stats *sp)
 {
         Classstats *csp;
         Sectionstats *ssp;

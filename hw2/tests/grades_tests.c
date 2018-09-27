@@ -5,6 +5,7 @@
 #include "write.h"
 #include "sort.h"
 #include "stats.h"
+#include "report.h"
 
 #define TEST_FILE "cse307.dat"
 #define COLLATED_REF "rsrc/cse307.collated"
@@ -28,7 +29,7 @@ Test(basic_suite, stats_test) {
     cr_assert_eq(errors, 0, "There were errors reported when reading test data.\n");
     cr_assert_neq(c, NULL, "NULL pointer returned from readfile().\n");
     s = statistics(c);
-    cr_assert_neq(c, NULL, "NULL pointer returned from statistics().\n");
+    cr_assert_neq(s, NULL, "NULL pointer returned from statistics().\n");
 }
 
 Test(basic_suite, collate_test) {
@@ -53,7 +54,7 @@ Test(basic_suite, tabsep_test) {
     cr_assert_eq(errors, 0, "There were errors reported when reading test data.\n");
     cr_assert_neq(c, NULL, "NULL pointer returned from readfile().\n");
     s = statistics(c);
-    cr_assert_neq(c, NULL, "NULL pointer returned from statistics().\n");
+    cr_assert_neq(s, NULL, "NULL pointer returned from statistics().\n");
     sortrosters(c, comparename);
     FILE *f = fopen(TABSEP_OUTPUT, "w");
     cr_assert_neq(f, NULL, "Error opening test output file.\n");

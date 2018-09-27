@@ -1,4 +1,5 @@
 
+
 /*
  * Read in grade database from ASCII files
  */
@@ -6,11 +7,13 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "global.h"
 #include "gradedb.h"
 #include "stats.h"
 #include "allocate.h"
 #include "read.h"
+#include "error.h"
 
 /*
  * Input file stack
@@ -22,16 +25,21 @@ Ifile *ifile;
  * Token readahead buffer
  */
 
-char tokenbuf[32];
+char tokenbuf[100];
 char *tokenptr = tokenbuf;
 char *tokenend = tokenbuf;
+
+
+//int istoken();
+//int checktoken(char* key);
+
 
 Course *readfile(root)
 char *root;
 {
         Course *c;
 
-        ifile = newifile();
+        ifile = newifile(); //allocate space for the new file
         ifile->prev = NULL;
         ifile->name = root;
         ifile->line = 1;
@@ -40,6 +48,7 @@ char *root;
 
         fprintf(stderr, "[ %s", root);
         gobbleblanklines();
+        //printf("gobbled lines");
         c = readcourse();
         gobbleblanklines();
         expecteof();
@@ -52,12 +61,19 @@ Course *readcourse()
 {
         Course *c;
         expecttoken("COURSE");
+        //fprintf(stderr,"course read begin");
         c = newcourse();
+        //fprintf(stderr,"new course initialized\n");
         c->number = readid();
+        //fprintf(stderr,"id read:%s\n",c->number);
         c->title = readname();
+        //fprintf(stderr,"name read:%s\n",c->title);
         c->professor = readprofessor();
+        //fprintf(stderr,"prof read:%s\n",c->professor->name);
         c->assignments = readassignments();
+        //fprintf(stderr,"assignments read\n");
         c->sections = readsections(c->assignments);
+        //fprintf(stderr,"read course end");
         return(c);
 }
 
@@ -75,9 +91,13 @@ Assistant *readassistant()
 {
         Assistant *a;
         if(!checktoken("ASSISTANT")) return(NULL);
+        //fprintf(stderr,"token correct\n");
         a = newassistant();
+        //fprintf(stderr,"allocated space for new assistant\n");
         a->surname = readsurname();
+        //fprintf(stderr,"surname read");
         a->name = readname();
+        //fprintf(stderr,"\nread assistant");
         return(a);
 }
 
@@ -116,21 +136,29 @@ Assignment *a;
         Section *s;
         while(!istoken()) {
                 advancetoken();
+                //fprintf(stderr,"advanced token\n");
                 if(!istoken()) {
+                        //fprintf(stderr,"not token\n");
                         if(ifile->prev == NULL) return(NULL);
                         else previousfile();
                 }
         }
         if(checktoken("FILE")) {
+                //fprintf(stderr,"found a new file\n");
                 pushfile();
+                //fprintf(stderr,"pushed file\n");
                 return(readsections(a));
         }
         if(!checktoken("SECTION")) return(NULL);
         s = newsection();
         s->name = readname();
+        //fprintf(stderr,"read SECTION name:%s\n",s->name);
         s->assistant = readassistant();
+        //fprintf(stderr,"read assistant name\n");
         s->roster = readstudents(a, s);
+        //fprintf(stderr,"read students \n");
         s->next = readsections(a);
+        //fprintf(stderr,"read students names\n");
         return(s);
 }
 
@@ -360,6 +388,7 @@ Surname readsurname()
                 s = newstring("", 0);
         }
         flushtoken();
+        //fprintf(stderr,"surname:%s\n",s);
         return(s);
 }
 
@@ -367,12 +396,14 @@ Name readname()
 {
         Name n;
         advanceeol();
+
         if(istoken()) n = newstring(tokenptr, tokensize());
         else {
                 error("(%s:%d) Expected a name.", ifile->name, ifile->line);
                 n = newstring("", 0);
         }
         flushtoken();
+        //fprintf(stderr,"name:%s\n",n);
         expectnewline();
         return(n);
 }
@@ -429,6 +460,7 @@ int tokensize()
 void flushtoken()
 {
         tokenptr = tokenend = tokenbuf;
+        //restore the address
 }
 
 int iswhitespace(c)
@@ -449,9 +481,10 @@ void gobblewhitespace()
 
 void gobbleblanklines()
 {
-        char c;
+        int c;
         if(istoken()) return;
         do {
+
           if((c = getc(ifile->fd)) == '#') {
             while((c = getc(ifile->fd)) != '\n') {
               if(c == EOF)
@@ -461,14 +494,19 @@ void gobbleblanklines()
             ifile->line++;
             continue;
           }
+          //fprintf(stderr,"\nChar:%c\n",c);
           ungetc(c, ifile->fd);
+          //fprintf(stderr,"putback: %c\n",k);
+
           while((c = getc(ifile->fd)) == '\n') {
             ifile->line++;
             gobblewhitespace();
             break;
           }
+          //fprintf(stderr,"char%c:",c);
           if(c == '\n') continue;
           ungetc(c, ifile->fd);
+          //fprintf(stderr,"charM:%c\n",m);
           return;
         } while(1);
 }
@@ -480,7 +518,7 @@ void gobbleblanklines()
 
 char nextchar()
 {
-        char c;
+        int c;
         if(istoken()) return(*tokenptr++);
         flushtoken();
         if((c = getc(ifile->fd)) == EOF)
@@ -495,7 +533,7 @@ char nextchar()
 
 void advancetoken()
 {
-        char c;
+        int c;
         if(istoken()) error("(%s:%d) Flushing unread input token.", ifile->name, ifile->line);
         flushtoken();
         gobblewhitespace();
@@ -516,16 +554,20 @@ void advancetoken()
 
 void advanceeol()
 {
-        char c;
+        int c;
         if(istoken()) error("(%s:%d) Flushing unread input token.", ifile->name, ifile->line);
         flushtoken();
+
         gobblewhitespace();
         while((c = getc(ifile->fd)) != EOF) {
+               // fprintf(stderr,"%c:",c);
                 if(c == '\n') {
                         ungetc(c, ifile->fd);
                         break;
                 }
+
                 *tokenend++ = c;
+                //fprintf(stderr,"%c\n:",*(tokenend-1));
         }
         if(c == EOF)
                 fatal("(%s:%d) Incomplete line at end of file.", ifile->name, ifile->line);
@@ -556,9 +598,9 @@ char *key;
  * and TRUE is returned.
  */
 
-int checktoken(key)
-char *key;
+int checktoken(char* key)
 {
+
         if(!istoken()) advancetoken();
         if(istoken() && !strcmp(tokenptr, key)) {
                 flushtoken();
@@ -587,7 +629,7 @@ void expectnewline()
 
 void expecteof()
 {
-        char c;
+        int c;
         if(!istoken() && (c = getc(ifile->fd)) == EOF && ifile->prev == NULL)
            return;
         else {
@@ -599,16 +641,22 @@ void expecteof()
 
 void previousfile()
 {
+        //fprintf(stderr,"prev file method entered\n");
         Ifile *prev;
         if((prev = ifile->prev) == NULL)
                 fatal("(%s:%d) No previous file.", ifile->name, ifile->line);
-        free(ifile);
         fclose(ifile->fd);
+        //fprintf(stderr,"closed current file\n");
+        free(ifile);
+        //fprintf(stderr,"freed current file\n");
+        //fclose(ifile->fd);
+        //fprintf(stderr,"closed current file\n");
         ifile = prev;
         fprintf(stderr, " ]");
-}
 
-void pushfile(e)
+}
+//initially with parameter int e
+void pushfile()
 {
         Ifile *nfile;
         char *n;
@@ -631,5 +679,6 @@ void pushfile(e)
         ifile = nfile;
         fprintf(stderr, " [ %s", n);
         gobbleblanklines();
+        //fprintf(stderr,"\nread new file and gobbled lines again\n");
 }
 

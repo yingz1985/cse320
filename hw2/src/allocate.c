@@ -1,4 +1,5 @@
 
+
 /*
  * Allocate storage for the various data structures
  */
@@ -10,7 +11,9 @@
 #include "gradedb.h"
 #include "stats.h"
 #include "allocate.h"
+#include "error.h"
 
+#define memerr "Unable to allocate memory."
 Professor *newprofessor()
 {
         Professor *p;

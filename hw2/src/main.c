@@ -11,6 +11,9 @@
 #include "write.h"
 #include "normal.h"
 #include "sort.h"
+#include "report.h"
+#include "error.h"
+
 
 /*
  * Course grade computation program
@@ -66,9 +69,15 @@ static struct option_info {
                   "Sort by {name, id, score}."}
 };
 
-#define NUM_OPTIONS (14)
+/*
+*   first-second: name of the long option
+*   has_arg: whether or not this long option requires an argument e.g. required_argument
+*
+*
+*/
+#define NUM_OPTIONS (13)
 
-static char *short_options = "";
+static char *short_options = "rcank:";
 static struct option long_options[NUM_OPTIONS];
 
 static void init_options() {
@@ -94,7 +103,7 @@ char *argv[];
         Course *c;
         Stats *s;
         extern int errors, warnings;
-        char optval;
+        int optval;
         int (*compare)() = comparename;
 
         fprintf(stderr, BANNER);
@@ -103,11 +112,15 @@ char *argv[];
         while(optind < argc) {
             if((optval = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
                 switch(optval) {
-                case REPORT: report++; break;
-                case COLLATE: collate++; break;
+                case REPORT:
+                case 'r': report++; break;  //stacking cases
+                case COLLATE:
+                case 'c' : collate++; break;
                 case TABSEP: tabsep++; break;
-                case NONAMES: nonames++; break;
+                case NONAMES:
+                case 'n':  nonames++; break;
                 case SORTBY:
+                case 'k':
                     if(!strcmp(optarg, "name"))
                         compare = comparename;
                     else if(!strcmp(optarg, "id"))
@@ -121,6 +134,7 @@ char *argv[];
                         usage(argv[0]);
                     }
                     break;
+
                 case FREQUENCIES: freqs++; break;
                 case QUANTILES: quantiles++; break;
                 case SUMMARIES: summaries++; break;
@@ -129,6 +143,7 @@ char *argv[];
                 case INDIVIDUALS: scores++; break;
                 case HISTOGRAMS: histograms++; break;
                 case ALLOUTPUT:
+                case 'a':
                     freqs++; quantiles++; summaries++; moments++;
                     composite++; scores++; histograms++; tabsep++;
                     break;
@@ -147,10 +162,12 @@ char *argv[];
                 usage(argv[0]);
         }
         char *ifile = argv[optind];
+        //printf("filename:%s\n",ifile);
         if(report == collate) {
                 fprintf(stderr, "Exactly one of '%s' or '%s' is required.\n\n",
                         option_table[REPORT].name, option_table[COLLATE].name);
                 usage(argv[0]);
+
         }
 
         fprintf(stderr, "Reading input data...\n");
@@ -176,7 +193,7 @@ char *argv[];
         sortrosters(c, compare);
 
         fprintf(stderr, "Producing reports...\n");
-        reportparams(stdout, ifile, c);
+        reportparams(stdout, ifile, c); // c =course*   ifile = file
         if(moments) reportmoments(stdout, s);
         if(composite) reportcomposites(stdout, c, nonames);
         if(freqs) reportfreqs(stdout, s);

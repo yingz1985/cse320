@@ -17,4 +17,5 @@ Sectionstats *newsectionstats();
 Stats *newstats();
 Ifile *newifile();
 
-char *memerr = "Unable to allocate memory.";
+extern char *memerr ;
+//= "Unable to allocate memory.";
