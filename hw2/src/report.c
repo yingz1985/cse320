@@ -193,8 +193,8 @@ Stats *s;
                 fprintf(fd, "(%6.2f,%6.2f)", fp->score,
                         (float)fp->numless * 100.0/csp->tallied);
               } else {
-                fprintf(fd, "(%6.2f,%6.2f)", fp->score,
-                        (float)fp->numless * 100.0/csp->tallied);
+                fprintf(fd, "(%6.2f,***.**)", fp->score);
+
                 //second float used to be stars
               }
            }
@@ -215,8 +215,8 @@ Stats *s;
                     fprintf(fd, "(%6.2f,%6.2f)", fp->score,
                             (float)fp->numless * 100.0/ssp->tallied);
                  } else {
-                    fprintf(fd, "(%6.2f,%6.2f)", fp->score,
-                            (float)fp->numless * 100.0/ssp->tallied);
+                    fprintf(fd, "(%6.2f,***.**)", fp->score);
+
                     //used to be stars
                  }
               }
@@ -416,12 +416,12 @@ void histo(FILE* fd, int bins[50], float min,float  max, int cnt)
             min, max);
 }
 
-void reporttabs(FILE *fd, Course *c, int nm)
+void reporttabs(FILE *fd, Course *c)
 {
         Assignment *ap;
         Student *stp;
         Score *rscp;
-        nm+=2;
+
         //Score *nscp;
 
         fprintf(fd, "STUDENT INDIVIDUAL SCORES\n\n");

@@ -8,4 +8,4 @@ void reportscores(FILE* fd, Course* c, int nm);
 void reportcomposites(FILE* fd, Course* c, int nm);
 void reporthistos(FILE* fd, Course* c, Stats* s);
 void histo(FILE* fd, int* bins, float min, float max, int cnt);
-void reporttabs(FILE *fd, Course *c, int nm);
+void reporttabs(FILE *fd, Course *c);

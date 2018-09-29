@@ -22,9 +22,9 @@
  *              options set for that score and for the assignment.
  */
 
-void normalize(course, s)
+void normalize(course)
 Course *course;
-Stats *s;
+//Stats *s;
 {
         Student *student;
         Score *rawScore, *normScore;
@@ -38,9 +38,11 @@ Stats *s;
               sectionStat = rawScore->sstats; //statistics by section
               if(normScore == NULL) {
                 student->normscores = normScore = newscore();
+                memset(normScore,0,sizeof(Score));
                 normScore->next = NULL;
               } else {
                 normScore->next = newscore();
+                memset(normScore->next,0,sizeof(Score));
                 normScore = normScore->next;
                 normScore->next = NULL;
               }
@@ -74,7 +76,7 @@ Stats *s;
            }
         }
         //change made here ***
-        s->cstats = classStats;
+        //s->cstats = classStats;
         //****
 }
 

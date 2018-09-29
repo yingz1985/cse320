@@ -30,34 +30,34 @@ Stats *buildstats(c)
 Course *c;
 {
         Stats *stats;
-        Classstats *csp;
+        Classstats *classStat;
         Sectionstats *ssp;
         Assignment *ap;
         Section *sp;
 
         stats = newstats();
         stats->cstats = NULL;
-        csp = NULL;
+        classStat = NULL;
         for(ap = c->assignments; ap != NULL; ap = ap->next) {
-                if(csp == NULL) {
+                if(classStat == NULL) {
                         stats->cstats = newclassstats();
-                        csp = stats->cstats;
+                        classStat = stats->cstats;
                 } else {
-                        csp->next = newclassstats();
-                        csp = csp->next;
+                        classStat->next = newclassstats();
+                        classStat = classStat->next;
                 }
-                csp->next = NULL;
-                csp->asgt = ap;
-                csp->valid = 0;
-                csp->tallied = 0;
-                csp->sum = csp->sumsq = 0.0;
-                csp->freqs = NULL;
-                csp->sstats = NULL;
+                classStat->next = NULL;
+                classStat->asgt = ap;
+                classStat->valid = 0;
+                classStat->tallied = 0;
+                classStat->sum = classStat->sumsq = 0.0;
+                classStat->freqs = NULL;
+                classStat->sstats = NULL;
                 ssp = NULL;
                 for(sp = c->sections; sp != NULL; sp = sp->next) {
                         if(ssp == NULL) {
-                                csp->sstats = newsectionstats();
-                                ssp = csp->sstats;
+                                classStat->sstats = newsectionstats();
+                                ssp = classStat->sstats;
 
                         } else {
                                 ssp->next = newsectionstats();
@@ -92,31 +92,31 @@ Stats *s;
 {
         Assignment *ap;
         Section *sep;
-        Student *stp, *rp;
-        Score *scp;
+        Student *student, *rp;
+        Score *score;
 
-        Classstats *csp;
+        Classstats *classStat;
         Sectionstats *ssp;
 
-        csp = s->cstats;
+        classStat = s->cstats;
         c->roster = rp = NULL;
-        for(ap = c->assignments; ap != NULL; ap = ap->next, csp = csp->next) {
-           ssp = csp->sstats;
+        for(ap = c->assignments; ap != NULL; ap = ap->next, classStat = classStat->next) {
+           ssp = classStat->sstats;
            for(sep = c->sections; sep != NULL; sep = sep->next, ssp = ssp->next) {
-              for(stp = sep->roster; stp != NULL; stp = stp->next) {
+              for(student = sep->roster; student != NULL; student = student->next) {
                  if(rp == NULL) {       /* Link students into course roster */
-                        c->roster = stp;
-                        stp->cnext = NULL;
-                        rp = stp;
+                        c->roster = student;
+                        student->cnext = NULL;
+                        rp = student;
                  } else {
-                        rp->cnext = stp;
-                        stp->cnext = NULL;
-                        rp = stp;
+                        rp->cnext = student;
+                        student->cnext = NULL;
+                        rp = student;
                  }
-                 for(scp = stp->rawscores; scp != NULL; scp = scp->next) {
-                    if(scp->asgt == ap) {
-                       scp->cstats = csp; /* link scores to statistics for */
-                       scp->sstats = ssp; /* later use in normalization */
+                 for(score = student->rawscores; score != NULL; score = score->next) {
+                    if(score->asgt == ap) {
+                       score->cstats = classStat; /* link scores to statistics for */
+                       score->sstats = ssp; /* later use in normalization */
                     }
                  }
               }
@@ -137,16 +137,16 @@ Stats *s;
 void do_freqs(c)
 Course *c;
 {
-        Student *stp;
-        Score *scp;
+        Student *student;
+        Score *score;
 
-        for(stp = c->roster; stp != NULL; stp = stp->cnext) {
-           for(scp = stp->rawscores; scp != NULL; scp = scp->next) {
-               if(scp->flag == VALID || scp->subst == USERAW) {
-                  scp->cstats->freqs = count_score(scp, scp->cstats->freqs);
-                  scp->cstats->tallied++;
-                  scp->sstats->freqs = count_score(scp, scp->sstats->freqs);
-                  scp->sstats->tallied++;
+        for(student = c->roster; student != NULL; student = student->cnext) {
+           for(score = student->rawscores; score != NULL; score = score->next) {
+               if(score->flag == VALID || score->subst == USERAW) {
+                  score->cstats->freqs = count_score(score, score->cstats->freqs);
+                  score->cstats->tallied++;
+                  score->sstats->freqs = count_score(score, score->sstats->freqs);
+                  score->sstats->tallied++;
                }
            }
         }
@@ -158,43 +158,46 @@ Course *c;
  * The head of the new list is returned.
  */
 
-Freqs *count_score(scp, afp)
-Score *scp;
+Freqs *count_score(score, afp)
+Score *score;
 Freqs *afp;
 {
-        Freqs *fp, *sfp;
+        Freqs *fp = NULL, *sfp = NULL;
 
         for(fp = afp; fp != NULL; sfp = fp, fp = fp->next) {
-                if(fp->score == scp->grade) {
+
+                if(fp->score == score->grade) {
                         fp->count++;
                         return(afp);
-                } else if(fp->score > scp->grade) {
+                } else if(fp->score > score->grade) {
                         if(sfp == NULL) {       /* insertion at head */
                                 sfp = newfreqs();
                                 sfp->next = fp;
-                                sfp->score = scp->grade;
+                                sfp->score = score->grade;
                                 sfp->count = 1;
                                 return(sfp);    /* return new head */
                         } else {                /* insertion in middle */
                                 sfp->next = newfreqs();
                                 sfp = sfp->next;
                                 sfp->next = fp;
-                                sfp->score = scp->grade;
+                                sfp->score = score->grade;
                                 sfp->count = 1;
                                 return(afp);    /* return old head */
                         }
                 } else continue;
         }
         if(sfp == NULL) {       /* insertion into empty list */
+                sfp = newfreqs();
                 sfp->next = NULL;
-                sfp->score = scp->grade;
+                sfp->score = score->grade;
                 sfp->count = 1;
                 return(sfp);    /* return new head */
+
         } else {                /* insertion at end of list */
                 sfp->next = newfreqs();
                 sfp = sfp->next;
                 sfp->next = NULL;
-                sfp->score = scp->grade;
+                sfp->score = score->grade;
                 sfp->count = 1;
                 return(afp);
         }
@@ -208,19 +211,19 @@ Freqs *afp;
 void do_quantiles(s)
 Stats *s;
 {
-        Classstats *csp;
+        Classstats *classStat;
         Sectionstats *ssp;
         Freqs *fp;
         int sum;
 
-        for(csp = s->cstats; csp != NULL; csp = csp->next) {
+        for(classStat = s->cstats; classStat != NULL; classStat = classStat->next) {
            sum = 0;
-           for(fp = csp->freqs; fp != NULL; fp = fp->next) {
+           for(fp = classStat->freqs; fp != NULL; fp = fp->next) {
               fp->numless = sum;
               sum += fp->count;
               fp->numlesseq = sum;
            }
-           for(ssp = csp->sstats; ssp != NULL; ssp = ssp->next) {
+           for(ssp = classStat->sstats; ssp != NULL; ssp = ssp->next) {
               sum = 0;
               for(fp = ssp->freqs; fp != NULL; fp = fp->next) {
                 fp->numless = sum;
@@ -244,32 +247,32 @@ Stats *s;
 void do_sums(c)
 Course *c;
 {
-        Student *stp;
-        Score *scp;
-        Classstats *csp;
+        Student *student;
+        Score *score;
+        Classstats *classStat;
         Sectionstats *ssp;
         double g;
 
-        for(stp = c->roster; stp != NULL; stp = stp->cnext) {
-           for(scp = stp->rawscores; scp != NULL; scp = scp->next) {
-              if(scp->flag == VALID || scp->subst == USERAW) {
-                csp = scp->cstats;
-                ssp = scp->sstats;
-                g = scp->grade;
-                if(csp->valid++ == 0) csp->min = csp->max = g;
+        for(student = c->roster; student != NULL; student = student->cnext) {
+           for(score = student->rawscores; score != NULL; score = score->next) {
+              if(score->flag == VALID || score->subst == USERAW) {
+                classStat = score->cstats;
+                ssp = score->sstats;
+                g = score->grade;
+                if(classStat->valid++ == 0) classStat->min = classStat->max = g;
                 else {
-                        if(g < csp->min) csp->min = g;
-                        if(g > csp->max) csp->max = g;
+                        if(g < classStat->min) classStat->min = g;
+                        if(g > classStat->max) classStat->max = g;
                 }
                 if(ssp->valid++ == 0) ssp->min = ssp->max = g;
                 else {
-                        if(g < csp->min) csp->min = g;
-                        if(g > csp->max) csp->max = g;
+                        if(g < classStat->min) classStat->min = g;
+                        if(g > classStat->max) classStat->max = g;
                 }
-                csp->sum += g;
+                classStat->sum += g;
                 ssp->sum += g;
                 g = g*g;
-                csp->sumsq += g;
+                classStat->sumsq += g;
                 ssp->sumsq += g;
               }
            }
@@ -283,24 +286,24 @@ Course *c;
 
 void do_moments(Stats *sp)
 {
-        Classstats *csp;
+        Classstats *classStat;
         Sectionstats *ssp;
 
-        for(csp = sp->cstats; csp != NULL; csp = csp->next) {
-           if(csp->valid) {
-                csp->mean = csp->sum/csp->valid;
-                if(csp->valid == 1) {
-                   warning("Too few scores for %s.", csp->asgt->name);
-                   csp->stddev = 0.0;
+        for(classStat = sp->cstats; classStat != NULL; classStat = classStat->next) {
+           if(classStat->valid) {
+                classStat->mean = classStat->sum/classStat->valid;
+                if(classStat->valid == 1) {
+                   warning("Too few scores for %s.", classStat->asgt->name);
+                   classStat->stddev = 0.0;
                 } else {
-                   csp->stddev = stddev(csp->valid, csp->sum, csp->sumsq);
+                   classStat->stddev = stddev(classStat->valid, classStat->sum, classStat->sumsq);
                 }
            } else {
-                warning("No valid scores for %s.", csp->asgt->name);
-                csp->mean = 0.0;
-                csp->stddev = 0.0;
+                warning("No valid scores for %s.", classStat->asgt->name);
+                classStat->mean = 0.0;
+                classStat->stddev = 0.0;
            }
-           for(ssp = csp->sstats; ssp != NULL; ssp = ssp->next) {
+           for(ssp = classStat->sstats; ssp != NULL; ssp = ssp->next) {
               if(ssp->valid) {
                  ssp->mean = ssp->sum/ssp->valid;
                  if(ssp->valid == 1) {

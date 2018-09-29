@@ -12,7 +12,6 @@ int dbflag = 1;
 
 void fatal(char *fmt,...)
 {
-        fprintf(stderr,"fatal");
         va_list args;
         va_start(args,fmt);
 
@@ -36,7 +35,7 @@ void fatal(char *fmt,...)
 
 void error(char* fmt, ...)
 {
-        fprintf(stderr,"error");
+
         va_list args;
         va_start(args,fmt);
 

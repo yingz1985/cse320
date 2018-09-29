@@ -52,32 +52,33 @@ void stnxt();
 int compare();
 {
         int count, i;
-        Student *sp, **stab;
+        Student *student, **stab;
 
-        sp = s;
+        student = s;
         count = 0;
-        while(sp != NULL) {     /* Count students */
+        while(student != NULL) {     /* Count students */
                 count++;
-                sp = gtnxt(sp);
+                student = gtnxt(student);
         }
         if(count == 0) return(NULL);
         if((stab = (Student **)malloc(count*sizeof(Student))) == NULL)
                 warning("Not enough memory to perform sorting.");
-        sp = s;
+        student = s;
         i = count;
         while(i--) {            /* Put students in table */
-                stab[i] = sp;
-                sp = gtnxt(sp);
+                stab[i] = student;
+                student = gtnxt(student);
         }
         sorttable(stab, 0, count, compare);
-        sp = stab[0];
+        student = stab[0];
         for(i = 1; i < count; i++) {    /* Relink students in order */
-                stnxt(sp, stab[i]);
-                sp = stab[i];
+                stnxt(student, stab[i]);
+                student = stab[i];
         }
-        stnxt(sp, NULL);
-        sp = stab[0];
-        return(sp);
+        stnxt(student, NULL);
+        student = stab[0];
+        free(stab);//free memory allocated
+        return(student);
 }
 
 /*
@@ -150,13 +151,13 @@ Student *s1, *s2;
         else return(0);
 }
 
-void checkfordups(sp)
-Student *sp;
+void checkfordups(student)
+Student *student;
 {
-        while(sp != NULL && sp->cnext != NULL) {
-                if(!comparename(sp, sp->cnext))
+        while(student != NULL && student->cnext != NULL) {
+                if(!comparename(student, student->cnext))
                         warning("Duplicate entry for student: %s, %s.",
-                                sp->surname, sp->name);
-                sp = sp->cnext;
+                                student->surname, student->name);
+                student = student->cnext;
         }
 }

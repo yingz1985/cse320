@@ -66,7 +66,9 @@ static struct option_info {
  {NONAMES,        "nonames",   'n',      no_argument, NULL,
                   "Suppress printing of students' names."},
  {SORTBY,         "sortby",    'k',      required_argument, "key",
-                  "Sort by {name, id, score}."}
+                  "Sort by {name, id, score}."},
+ {0,NULL,0,no_argument,NULL,NULL}
+
 };
 
 /*
@@ -78,7 +80,7 @@ static struct option_info {
 #define NUM_OPTIONS (13)
 
 static char *short_options = "rcank:";
-static struct option long_options[NUM_OPTIONS];
+static struct option long_options[NUM_OPTIONS+1];
 
 static void init_options() {
     for(unsigned int i = 0; i < NUM_OPTIONS; i++) {
@@ -89,12 +91,145 @@ static void init_options() {
         op->flag = NULL;
         op->val = oip->val;
     }
+
 }
 
 static int report, collate, freqs, quantiles, summaries, moments,
            scores, composite, histograms, tabsep, nonames;
 
 static void usage();
+
+
+void freeCourse(Course* course)
+{
+    free(course->number);
+    free(course->title);
+    if(course->professor!=NULL)
+    {
+        free(course->professor->surname);
+        free(course->professor->name);
+        free(course->professor);
+    }
+    Assignment* temp = course->assignments;   //free all assignments in course
+    while(temp != NULL)
+    {
+        Assignment* nowFree =temp;
+        free(temp->name);
+        free(temp->atype);
+        temp = temp->next;
+        free(nowFree);
+
+    }
+
+    Section* sect = course->sections;
+    while(sect!=NULL)
+    {
+        Section* freeSect = sect;
+        if(sect->assistant !=NULL)
+        {
+
+            free(sect->assistant->name);
+            free(sect->assistant->surname);
+            free(sect->assistant);
+        }
+
+        free(sect->name);
+        //free students
+        Student* student= sect->roster;
+        while(student!=NULL)
+        {
+            Student* freeSt = student;
+            free(student->id);
+            free(student->surname);
+            free(student->name);
+            Score* raw = student->rawscores; //free scores within sections -> students
+            while(raw!=NULL)
+            {
+                Score* freeScore = raw;
+               /* for(temp = raw->asgt;temp != NULL;)
+                {
+                    Assignment* nowFree =temp;
+                    free(temp->name);
+                    free(temp->atype);
+                    temp = temp->next;
+                    free(nowFree);
+
+                }*/
+                if(raw->code != NULL)
+                    free(raw->code);
+                raw = raw->next;
+                free(freeScore);
+            }
+            Score* norm = student->normscores;
+            while(norm!=NULL)
+            {
+                Score* freeScor = norm;
+                if(norm->code !=NULL)
+                    free(norm->code);
+                norm = norm->next;
+                free(freeScor);
+
+            }
+
+
+            student = student->next;
+            free(freeSt);
+        }
+        sect = sect->next;
+        free(freeSect);
+
+
+    }
+
+    free(course);
+
+}
+
+void freeStats(Stats* stat)
+{
+    Classstats* s = stat->cstats;
+
+    while(s!=NULL)
+    {
+        Classstats* freeC = s;
+
+        Freqs* freq = s->freqs;
+
+        while(freq!=NULL)
+        {
+            Freqs* ffreq = freq;
+            freq= freq->next;
+            free(ffreq);
+
+        }
+        Sectionstats* section = s->sstats;
+        while(section!=NULL)
+        {
+            Sectionstats* fsection = section;
+            Freqs* f = section->freqs;
+            while(f!=NULL)
+            {
+                Freqs* ffreq = f;
+                f= f->next;
+                free(ffreq);
+
+            }
+
+            section= section->next;
+            free(fsection);
+
+        }
+
+
+
+        s = s->next;
+        free(freeC);
+
+    }
+    free(stat);
+
+
+}
 
 int main(argc, argv)
 int argc;
@@ -113,9 +248,9 @@ char *argv[];
             if((optval = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
                 switch(optval) {
                 case REPORT:
-                case 'r': report++; break;  //stacking cases
+                case 'r': if(optind==2) report++; break;  //stacking cases
                 case COLLATE:
-                case 'c' : collate++; break;
+                case 'c' : if(optind==2) collate++; break;
                 case TABSEP: tabsep++; break;
                 case NONAMES:
                 case 'n':  nonames++; break;
@@ -181,13 +316,15 @@ char *argv[];
         fprintf(stderr, "Calculating statistics...\n");
         s = statistics(c);
         if(s == NULL) fatal("There is no data from which to generate reports.");
-        normalize(c, s);
+        normalize(c);
         composites(c);
         sortrosters(c, comparename);
         checkfordups(c->roster);
         if(collate) {
                 fprintf(stderr, "Dumping collated data...\n");
                 writecourse(stdout, c);
+                freeCourse(c);
+                freeStats(s);
                 exit(errors ? EXIT_FAILURE : EXIT_SUCCESS);
         }
         sortrosters(c, compare);
@@ -201,11 +338,15 @@ char *argv[];
         if(summaries) reportquantilesummaries(stdout, s);
         if(histograms) reporthistos(stdout, c, s);
         if(scores) reportscores(stdout, c, nonames);
-        if(tabsep) reporttabs(stdout, c, nonames);
+        if(tabsep) reporttabs(stdout, c);
 
         fprintf(stderr, "\nProcessing complete.\n");
         printf("%d warning%s issued.\n", warnings+errors,
                warnings+errors == 1? " was": "s were");
+
+        freeCourse(c);
+        freeStats(s);
+
         exit(errors ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
@@ -232,3 +373,5 @@ char *name;
         }
         exit(EXIT_FAILURE);
 }
+
+

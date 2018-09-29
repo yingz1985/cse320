@@ -40,6 +40,7 @@ char *root;
         Course *c;
 
         ifile = newifile(); //allocate space for the new file
+        memset(ifile,0,sizeof(Ifile));
         ifile->prev = NULL;
         ifile->name = root;
         ifile->line = 1;
@@ -53,7 +54,18 @@ char *root;
         gobbleblanklines();
         expecteof();
         fclose(ifile->fd);
+        free(ifile);
         fprintf(stderr, " ]\n");
+        /*while(ifile!=NULL)
+        {
+            Ifile * temp = ifile;
+
+            free(ifile->name);
+            fclose(ifile->fd);
+            ifile = ifile->prev;
+            free(temp);
+        }*/
+
         return(c);
 }
 
@@ -63,13 +75,14 @@ Course *readcourse()
         expecttoken("COURSE");
         //fprintf(stderr,"course read begin");
         c = newcourse();
+        memset(c,0,sizeof(Course));
         //fprintf(stderr,"new course initialized\n");
         c->number = readid();
         //fprintf(stderr,"id read:%s\n",c->number);
         c->title = readname();
         //fprintf(stderr,"name read:%s\n",c->title);
         c->professor = readprofessor();
-        //fprintf(stderr,"prof read:%s\n",c->professor->name);
+        //fprintf(stderr,"prof read:%s,%s\n",c->professor->surname,c->professor->name);
         c->assignments = readassignments();
         //fprintf(stderr,"assignments read\n");
         c->sections = readsections(c->assignments);
@@ -82,6 +95,7 @@ Professor *readprofessor()
         Professor *p;
         if(!checktoken("PROFESSOR")) return(NULL);
         p = newprofessor();
+        memset(p,0,sizeof(Professor));
         p->surname = readsurname();
         p->name = readname();
         return(p);
@@ -93,6 +107,7 @@ Assistant *readassistant()
         if(!checktoken("ASSISTANT")) return(NULL);
         //fprintf(stderr,"token correct\n");
         a = newassistant();
+        memset(a,0,sizeof(Assistant));
         //fprintf(stderr,"allocated space for new assistant\n");
         a->surname = readsurname();
         //fprintf(stderr,"surname read");
@@ -106,6 +121,7 @@ Assignment *readassignments()
         Assignment *a;
         if(!checktoken("ASSIGNMENT")) return(NULL);
         a = newassignment();
+        memset(a,0,sizeof(Assignment));
         a->name = readid();
         a->atype = readatype();
         expectnewline();
@@ -150,7 +166,10 @@ Assignment *a;
                 return(readsections(a));
         }
         if(!checktoken("SECTION")) return(NULL);
+
         s = newsection();
+        memset(s,0,sizeof(Section));
+
         s->name = readname();
         //fprintf(stderr,"read SECTION name:%s\n",s->name);
         s->assistant = readassistant();
@@ -169,6 +188,7 @@ Section *sep;
         Student *s;
         if(!checktoken("STUDENT")) return(NULL);
         s = newstudent();
+        memset(s,0,sizeof(Student));
         s->id = readid();
         s->surname = readsurname();
         s->name = readname();
@@ -178,6 +198,7 @@ Section *sep;
         return(s);
 }
 
+
 Score *readscores(a)
 Assignment *a;
 {
@@ -186,6 +207,7 @@ Assignment *a;
 
         if(!checktoken("SCORE")) return(NULL);
         s = newscore();
+        memset(s,0,sizeof(Score));
         if(!istoken()) advancetoken();
         s->asgt = NULL;
         /*
@@ -645,8 +667,11 @@ void previousfile()
         Ifile *prev;
         if((prev = ifile->prev) == NULL)
                 fatal("(%s:%d) No previous file.", ifile->name, ifile->line);
+
+        free(ifile->name);
         fclose(ifile->fd);
         //fprintf(stderr,"closed current file\n");
+        //free(ifile->fd);
         free(ifile);
         //fprintf(stderr,"freed current file\n");
         //fclose(ifile->fd);
