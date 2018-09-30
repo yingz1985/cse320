@@ -17,7 +17,7 @@ build:
 run:
     stage: run
     script:
-        - cd ${HW_DIR} && bin/${EXEC} -r HW_DIR/EXEC_FILE
+        - cd ${HW_DIR} && bin/${EXEC} -r ${EXEC_FILE}
 test:
     stage: test
     script:
