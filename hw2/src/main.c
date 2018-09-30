@@ -30,8 +30,9 @@
 #define HISTOGRAMS      8
 #define TABSEP          9
 #define ALLOUTPUT      10
-#define SORTBY         11
-#define NONAMES        12
+#define NONAMES        11
+#define SORTBY         12
+#define OUTPUT         13
 
 static struct option_info {
         unsigned int val;
@@ -67,6 +68,8 @@ static struct option_info {
                   "Suppress printing of students' names."},
  {SORTBY,         "sortby",    'k',      required_argument, "key",
                   "Sort by {name, id, score}."},
+ {OUTPUT,         "output",    'o',      required_argument, "outfile",
+                  "Write output to file, rather than standard output."},
  {0,NULL,0,no_argument,NULL,NULL}
 
 };
@@ -77,13 +80,14 @@ static struct option_info {
 *
 *
 */
-#define NUM_OPTIONS (13)
+#define NUM_OPTIONS (14)
 
-static char *short_options = "rcank:";
-static struct option long_options[NUM_OPTIONS+1];
+static char short_options[NUM_OPTIONS] = {'\0'};
+//"rcank:o:";
+static struct option long_options[NUM_OPTIONS];
 
 static void init_options() {
-    for(unsigned int i = 0; i < NUM_OPTIONS; i++) {
+    for(unsigned int i = 0; i < NUM_OPTIONS+1; i++) {
         struct option_info *oip = &option_table[i];
         struct option *op = &long_options[i];
         op->name = oip->name;
@@ -93,9 +97,31 @@ static void init_options() {
     }
 
 }
+/*
+static void init_short_options()
+{
+    int count = 0;
+    for(unsigned int i = 0; i < NUM_OPTIONS; i++)
+    {
+        struct option_info *oip = &option_table[i];
+        char character = oip->chr;
+        char arg = ':';
+        int hasArg = oip->has_arg;
+        if(character != 0)
+        {
+            short_options[count++] = character;
+            if(hasArg)
+                short_options[count++] = arg;
+
+
+        }
+    }
+
+
+}*/
 
 static int report, collate, freqs, quantiles, summaries, moments,
-           scores, composite, histograms, tabsep, nonames;
+           scores, composite, histograms, tabsep, nonames,output;
 
 static void usage();
 
@@ -240,17 +266,57 @@ char *argv[];
         extern int errors, warnings;
         int optval;
         int (*compare)() = comparename;
+        FILE* outFile = stdout;
 
         fprintf(stderr, BANNER);
         init_options();
+
+        int count = 0;
+        for(unsigned int i = 0; i < NUM_OPTIONS+1; i++)
+        {
+            struct option_info *oip = &option_table[i];
+            char character = oip->chr;
+            char arg = ':';
+            int hasArg = oip->has_arg;
+            if(character)
+            {
+                short_options[count++] = character;
+                if(hasArg)
+                    short_options[count++] = arg;
+
+
+            }
+        }
+
         if(argc <= 1) usage(argv[0]);
         while(optind < argc) {
             if((optval = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
                 switch(optval) {
                 case REPORT:
-                case 'r': if(optind==2) report++; break;  //stacking cases
+                case 'r': if(optind==2) report++;
+                        else
+                        {
+                            fprintf(stderr, "'%s' must only appear as the first argument.\n\n",
+                            option_table[REPORT].name);
+                            usage(argv[0]);
+                        }
+                        break;  //stacking cases
                 case COLLATE:
-                case 'c' : if(optind==2) collate++; break;
+                case 'c' : if(optind==2) collate++;
+                            else
+                        {
+                            fprintf(stderr, "'%s' must only appear as the first argument.\n\n",
+                            option_table[COLLATE].name);
+                            usage(argv[0]);
+                        } break;
+                case OUTPUT:
+                case 'o' : output++;
+                    if((outFile = fopen(optarg, "w")) == NULL)
+                    {
+                        error("Can't write file: %s\n", optarg);
+                        usage(argv[0]);
+                    }
+                    break;
                 case TABSEP: tabsep++; break;
                 case NONAMES:
                 case 'n':  nonames++; break;
@@ -265,7 +331,7 @@ char *argv[];
                     else {
                         fprintf(stderr,
                                 "Option '%s' requires argument from {name, id, score}.\n\n",
-                                option_table[(int)optval].name);
+                                option_table[SORTBY].name);
                         usage(argv[0]);
                     }
                     break;
@@ -320,9 +386,10 @@ char *argv[];
         composites(c);
         sortrosters(c, comparename);
         checkfordups(c->roster);
+
         if(collate) {
                 fprintf(stderr, "Dumping collated data...\n");
-                writecourse(stdout, c);
+                writecourse(outFile, c);
                 freeCourse(c);
                 freeStats(s);
                 exit(errors ? EXIT_FAILURE : EXIT_SUCCESS);
@@ -330,15 +397,15 @@ char *argv[];
         sortrosters(c, compare);
 
         fprintf(stderr, "Producing reports...\n");
-        reportparams(stdout, ifile, c); // c =course*   ifile = file
-        if(moments) reportmoments(stdout, s);
-        if(composite) reportcomposites(stdout, c, nonames);
-        if(freqs) reportfreqs(stdout, s);
-        if(quantiles) reportquantiles(stdout, s);
-        if(summaries) reportquantilesummaries(stdout, s);
-        if(histograms) reporthistos(stdout, c, s);
-        if(scores) reportscores(stdout, c, nonames);
-        if(tabsep) reporttabs(stdout, c);
+        reportparams(outFile, ifile, c); // c =course*   ifile = file
+        if(moments) reportmoments(outFile, s);
+        if(composite) reportcomposites(outFile, c, nonames);
+        if(freqs) reportfreqs(outFile, s);
+        if(quantiles) reportquantiles(outFile, s);
+        if(summaries) reportquantilesummaries(outFile, s);
+        if(histograms) reporthistos(outFile, c, s);
+        if(scores) reportscores(outFile, c, nonames);
+        if(tabsep) reporttabs(outFile, c);
 
         fprintf(stderr, "\nProcessing complete.\n");
         printf("%d warning%s issued.\n", warnings+errors,
