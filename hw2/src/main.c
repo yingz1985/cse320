@@ -290,7 +290,7 @@ char *argv[];
 
         if(argc <= 1) usage(argv[0]);
         while(optind < argc) {
-            if((optval = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
+            if((optval = getopt_long_only(argc, argv, short_options, long_options, NULL)) != -1) {
                 switch(optval) {
                 case REPORT:
                 case 'r': if(optind==2) report++;
