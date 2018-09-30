@@ -70,7 +70,7 @@ static struct option_info {
                   "Sort by {name, id, score}."},
  {OUTPUT,         "output",    'o',      required_argument, "outfile",
                   "Write output to file, rather than standard output."},
- {0,NULL,0,no_argument,NULL,NULL}
+ {0,NULL,0,0,NULL,NULL}
 
 };
 
@@ -84,7 +84,7 @@ static struct option_info {
 
 static char short_options[NUM_OPTIONS] = {'\0'};
 //"rcank:o:";
-static struct option long_options[NUM_OPTIONS];
+static struct option long_options[NUM_OPTIONS+1];
 
 static void init_options() {
     for(unsigned int i = 0; i < NUM_OPTIONS+1; i++) {
