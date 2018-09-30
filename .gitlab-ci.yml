@@ -3,6 +3,7 @@ variables:
     GIT_SSL_NO_VERIFY: "true"
     EXEC: grades
     HW_DIR: hw2
+    EXEC_FILE: cse307.dat
 before_script:
     - make clean all -C ${HW_DIR}
 stages:
@@ -16,7 +17,7 @@ build:
 run:
     stage: run
     script:
-        - cd ${HW_DIR} && bin/${EXEC} -h
+        - cd ${HW_DIR} && bin/${EXEC} -r EXEC_FILE
 test:
     stage: test
     script:
