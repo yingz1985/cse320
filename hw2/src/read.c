@@ -25,18 +25,44 @@ Ifile *ifile;
  * Token readahead buffer
  */
 
-char tokenbuf[100];
+
+/*char tokenbuf[100];
 char *tokenptr = tokenbuf;
 char *tokenend = tokenbuf;
+*/
+
+char *tokenbuf;
+char *tokenptr;
+char *tokenend;
+int size = 30;
+
+
 
 
 //int istoken();
 //int checktoken(char* key);
 
+void init_Buffer()
+{
+    tokenbuf = malloc(sizeof(char) * size) ;
+    tokenptr = tokenbuf;
+    tokenend = tokenbuf;
+}
+void allocateMem()
+{
+    int cursor = tokensize();
+    tokenbuf = realloc(tokenbuf,sizeof(char)*2*size);
+    tokenptr = tokenbuf;
+    tokenend = tokenptr+cursor;
+    size = size*2;
+
+
+}
 
 Course *readfile(root)
 char *root;
 {
+        init_Buffer();
         Course *c;
 
         ifile = newifile(); //allocate space for the new file
@@ -45,7 +71,13 @@ char *root;
         ifile->name = root;
         ifile->line = 1;
         if((ifile->fd = fopen(root, "r")) == NULL)
-                fatal("Can't open data file %s.\n", root);
+        {
+
+            free(ifile);
+            free(tokenbuf);
+            fatal("Can't open data file %s.\n", root);
+
+        }
 
         fprintf(stderr, "[ %s", root);
         gobbleblanklines();
@@ -56,6 +88,7 @@ char *root;
         fclose(ifile->fd);
         free(ifile);
         fprintf(stderr, " ]\n");
+        free(tokenbuf);
         /*while(ifile!=NULL)
         {
             Ifile * temp = ifile;
@@ -564,9 +597,16 @@ void advancetoken()
                         ungetc(c, ifile->fd);
                         break;
                 }
+                if(tokensize() == size)
+                    allocateMem();
                 *tokenend++ = c;
         }
-        if(tokenend != tokenptr) *tokenend++ = '\0';
+        if(tokenend != tokenptr)
+        {
+            if(tokensize() == size)
+                    allocateMem();
+            *tokenend++ = '\0';
+        }
 }
 
 /*
@@ -588,11 +628,16 @@ void advanceeol()
                         break;
                 }
 
+                if(tokensize() == size)
+                    allocateMem();
                 *tokenend++ = c;
+
                 //fprintf(stderr,"%c\n:",*(tokenend-1));
         }
         if(c == EOF)
                 fatal("(%s:%d) Incomplete line at end of file.", ifile->name, ifile->line);
+        if(tokensize() == size)
+                    allocateMem();
         *tokenend++ = '\0';
 }
 

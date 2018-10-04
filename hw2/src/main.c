@@ -290,7 +290,7 @@ char *argv[];
 
         if(argc <= 1) usage(argv[0]);
         while(optind < argc) {
-            if((optval = getopt_long_only(argc, argv, short_options, long_options, NULL)) != -1) {
+            if((optval = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
                 switch(optval) {
                 case REPORT:
                 case 'r': if(optind==2) report++;
@@ -311,7 +311,16 @@ char *argv[];
                         } break;
                 case OUTPUT:
                 case 'o' : output++;
-                    if((outFile = fopen(optarg, "w")) == NULL)
+
+                    if('-' == optarg[0] )
+                    {
+                        fprintf(stderr,
+                                "Option '%s' requires argument <filename>.\n\n",
+                                option_table[OUTPUT].name);
+                        usage(argv[0]);
+                    }
+                    else if( (outFile = fopen(optarg, "w")) == NULL)
+
                     {
                         error("Can't write file: %s\n", optarg);
                         usage(argv[0]);
@@ -355,6 +364,12 @@ char *argv[];
                     break;
                 }
             } else {
+                if(optval==-1 && optind!=argc-1)
+                {
+                    fprintf(stderr, "'%s' is not a valid option\n\n",
+                        argv[optind]);
+                    usage(argv[0]);
+                }
                 break;
             }
         }
@@ -392,6 +407,11 @@ char *argv[];
                 writecourse(outFile, c);
                 freeCourse(c);
                 freeStats(s);
+                if(output)
+                {
+                    fclose(outFile);
+                    outFile = NULL;
+                }
                 exit(errors ? EXIT_FAILURE : EXIT_SUCCESS);
         }
         sortrosters(c, compare);
@@ -413,6 +433,11 @@ char *argv[];
 
         freeCourse(c);
         freeStats(s);
+        if(output)
+        {
+            fclose(outFile);
+            outFile = NULL;
+        }
 
         exit(errors ? EXIT_FAILURE : EXIT_SUCCESS);
 }
