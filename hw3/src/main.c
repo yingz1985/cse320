@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "sfmm.h"
 
+
 int main(int argc, char const *argv[]) {
     sf_mem_init();
 
@@ -8,9 +9,15 @@ int main(int argc, char const *argv[]) {
 
     *ptr = 320320320e-320;
 
-    printf("%f\n", *ptr);
+    sf_show_heap();
+
+    char* array = sf_malloc(4000*sizeof(char));
+    //*array = 'c';
+    //printf("%f\n", *ptr);
+    sf_show_heap();
 
     sf_free(ptr);
+    sf_free(array);
 
     sf_mem_fini();
 
