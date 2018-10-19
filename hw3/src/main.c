@@ -21,17 +21,12 @@ int main(int argc, char const *argv[]) {
     sf_free(array);
     //sf_show_heap();*/
 
-    void *u = sf_malloc(1); //32
-    /* void *v = */ sf_malloc(40); //48
-    void *w = sf_malloc(152); //160
-    /* void *x = */ sf_malloc(536); //544
-    void *y = sf_malloc(1); // 32
-    /* void *z = */ sf_malloc(2072); //2080
-    sf_malloc(3000);
+    void *x = sf_malloc(sizeof(double) * 8);
+    void *y = sf_realloc(x, sizeof(int));
 
-    sf_free(u);
-    sf_free(w);
-    sf_free(y);
+    printf("x:%p \n%py:",x,y);
+
+
 
     sf_mem_fini();
 

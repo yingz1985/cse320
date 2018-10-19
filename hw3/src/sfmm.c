@@ -236,6 +236,7 @@ void removeBlockFromFreeList(sf_header* header)
 
     }
     else*/
+    //if(header->links.next==NULL && header->links.prev ==NULL) return;
     {
 
         header->links.prev->links.next = header->links.next;
@@ -363,25 +364,35 @@ void *sf_malloc(size_t size) {
 
     return NULL;
 }
-
-void sf_free(void *pp) {
-    //pp is the first byte of payload
-    if(pp==NULL) abort();
+int pointerValidity(void*pp)
+{
+    if(pp==NULL) return 0;
     sf_header* header = (sf_header*)((sf_block_info*)pp-1);
     size_t block_size = header->info.block_size<<4;
-    if((void*)header < (void*)currentPrologueEnd) abort();  //if header appears before the end of prologue
-    if(header->info.allocated==0) abort();
-    if(block_size%16!=0  || block_size<32 ) abort();
-    if(header->info.requested_size + sizeof(sf_block_info) > block_size) abort();
+    if((void*)header < (void*)currentPrologueEnd) return 0;  //if header appears before the end of prologue
+    if(header->info.allocated==0) return 0;
+    if(block_size%16!=0  || block_size<32 ) return 0;
+    if(header->info.requested_size + sizeof(sf_block_info) > block_size) return 0;
 
     sf_footer* previousFoot = ((sf_footer*)pp-2);
     sf_header* previousHead = (sf_header*)(((char*)pp)-(previousFoot->info.block_size<<4));
-
+    int allocated = 1;
     if(header->info.prev_allocated==0)
     {
-        if(previousFoot->info.allocated == 1 || previousHead->info.allocated == 1)
-            abort();
+        if(previousHead->info.allocated == 0 && previousFoot->info.allocated == 0)
+            allocated = 1;
+        else allocated = 0;
     }
+    if(!allocated) return 0;
+    return 1;
+
+}
+
+void sf_free(void *pp) {
+    //pp is the first byte of payload
+    if(pointerValidity(pp) ==0) abort();
+    sf_header* header = (sf_header*)((sf_block_info*)pp-1);
+
     sf_header* nextBlockHeader = ((sf_header*)(((char*)header)+(header->info.block_size<<4)));
     //(((sf_header*)(((char*)header)+size-8)))
     //sf_show_heap();
@@ -410,5 +421,54 @@ void sf_free(void *pp) {
 }
 
 void *sf_realloc(void *pp, size_t rsize) {
+    if(pointerValidity(pp)==0) abort();
+    if (rsize ==0)
+    {
+        sf_free(pp);
+        return NULL;
+    }
+    sf_header* header = (sf_header*)((sf_block_info*)pp-1);
+    size_t requiredBlockSize = findBlockSize(rsize);
+    if(requiredBlockSize > header->info.block_size<<4)
+    {
+        void * block = sf_malloc(rsize);
+        if(block==NULL) return NULL;
+        memcpy(block,pp,header->info.requested_size);
+        sf_free(pp);
+        return block;
+
+    }
+    else
+    {
+        size_t SplitBlockSize = (header->info.block_size<<4)-requiredBlockSize;
+        if(SplitBlockSize <32 || requiredBlockSize<32)
+        {   // if splitting would result in a splinter, dont split
+            header->info.requested_size = rsize;
+            return pp;
+
+        }
+        else
+        {
+            //size_t requiredBlockSize = findBlockSize(rsize);
+            header->info.block_size = requiredBlockSize>>4;
+            header->info.requested_size = rsize;
+
+            //void * footer = (char*)header+(header->info.block_size<<4)-8;
+            //*((sf_block_info*)footer) = header->info;
+            //doesn't require footer because block is already allocated
+            //sf_free_list_node* splitBlock = findBlock(size,0);//an empty list is acceptable
+            void * splitBlockAddress = (char*)header+(header->info.block_size<<4);
+            sf_block_info info = {1,1,0,SplitBlockSize>>4,0};
+            *((sf_block_info*)splitBlockAddress) = info;
+
+            *((sf_block_info*)((char*)splitBlockAddress+SplitBlockSize-8)) =  info;
+            //insert(size,splitBlock,splitBlockAddress);
+            sf_free((sf_block_info*)splitBlockAddress+1);
+            return pp;
+
+
+        }
+
+    }
     return NULL;
 }
