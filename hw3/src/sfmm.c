@@ -140,7 +140,8 @@ void coalesce(sf_header* header,int AddBlock)
 
     }
 
-    sf_show_heap();
+    //
+    //sf_show_heap();
 
 
 
@@ -315,6 +316,7 @@ void splitBlock(sf_free_list_node* found,size_t block_size)
 void *sf_malloc(size_t size) {
     if(size==0) return NULL;
 
+/////
     if(sf_mem_start()==sf_mem_end())    // heap is size 0
     {
         sf_mem_grow();
@@ -361,12 +363,16 @@ void *sf_malloc(size_t size) {
 
     }
 
-
+    sf_errno = ENOMEM;//did not satisfy condition
     return NULL;
 }
 int pointerValidity(void*pp)
 {
-    if(pp==NULL) return 0;
+    if(pp==NULL)
+    {
+            //sf_errno = EINVAL;
+            return 0;
+    }
     sf_header* header = (sf_header*)((sf_block_info*)pp-1);
     size_t block_size = header->info.block_size<<4;
     if((void*)header < (void*)currentPrologueEnd) return 0;  //if header appears before the end of prologue
@@ -398,7 +404,7 @@ void sf_free(void *pp) {
     //sf_show_heap();
     coalesce(header,1);
 
-    sf_show_heap();
+    //sf_show_heap();
 
     if(nextBlockHeader->info.allocated==0)
     {
@@ -421,12 +427,18 @@ void sf_free(void *pp) {
 }
 
 void *sf_realloc(void *pp, size_t rsize) {
-    if(pointerValidity(pp)==0) abort();
+    //what constitutes an invalid pointer
+    if(pointerValidity(pp)==0)
+    {
+        sf_errno = EINVAL;
+        abort();
+    }
     if (rsize ==0)
     {
         sf_free(pp);
         return NULL;
     }
+
     sf_header* header = (sf_header*)((sf_block_info*)pp-1);
     size_t requiredBlockSize = findBlockSize(rsize);
     if(requiredBlockSize > header->info.block_size<<4)

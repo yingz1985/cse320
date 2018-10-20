@@ -200,3 +200,141 @@ Test(sf_memsuite_student, realloc_smaller_block_free_block, .init = sf_mem_init,
 //DO NOT DELETE THESE COMMENTS
 //############################################
 
+Test(sf_memsuit_student,remove_block_from_freelist_after_malloc, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	void * x = sf_malloc (sizeof(int)); //size = 32
+	sf_malloc(sizeof(double)*10);
+	sf_free(x);
+
+	sf_malloc(sizeof(int));
+	//sf_free(z);
+	sf_free_list_node * size_32_list = find_free_list_for_size(32);
+
+
+	cr_assert(size_32_list->head.links.next==&size_32_list->head,"block freed isn't removed from the free list!%p,%p",
+		size_32_list->head.links.next,&size_32_list->head);
+	cr_assert(size_32_list->head.links.next==size_32_list->head.links.prev,"block freed isn't removed from the free list!");
+
+		/*allocating size 32 block, followed by an allocated block (to avoid coalescing after free)
+		when freeing the same block, it should clear the prev and next pointers in the corresponding free list
+		The sentinel head then will point to itself
+		*/
+}
+
+Test(sf_memsuit_student,check_block_info_after_malloc, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	void *y = sf_malloc(sizeof(char)*120); //128
+
+
+	void * x = sf_malloc(sizeof(int)); //32
+
+	sf_header *hp = (sf_header *)((char *)x - sizeof(sf_footer));
+	cr_assert(hp->info.prev_allocated == 1,"found two free blocks adjacent to each other!");
+	cr_assert(hp->info.requested_size == 4, "Requested size not what was expected!");
+	cr_assert(hp->info.block_size<<4 == 32, "Block size not what was expected!");
+	cr_assert(hp->info.allocated == 1, "Block not allocated!!");
+
+	sf_header *hp1 = (sf_header *)((char *)y - sizeof(sf_footer));
+	cr_assert(hp1->info.prev_allocated == 1,"found two free blocks adjacent to each other!");
+	cr_assert(hp1->info.requested_size == 120, "Requested size not what was expected!");
+	cr_assert(hp1->info.block_size<<4 == 128, "Block size not what was expected!");
+	cr_assert(hp1->info.allocated == 1, "Block not allocated!!");
+
+
+
+	/*when we allocate space, we're guarenteed to get a block with prev block that's already allocated
+		since we coalesce adjacent blocks when freeing memory
+		and we take the beginning of the block, and free the rest
+	*/
+
+}
+
+Test(sf_memsuit_student,realloc_bigger_block_content_consistency, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	char * x = sf_malloc(sizeof(char)*32);
+	char * y = sf_malloc(sizeof(char)*5);
+	int i;
+	char a = 'a';
+	for(i=0;i<5;i++)
+	{
+		*(x+i) = a;
+		*(y+i) = a++;
+	}
+	x = sf_realloc(x,100);
+	for(i=0;i<5;i++)
+	{
+		cr_assert(*(x+i) == *(y+i), "Content after realloc is not consistent!");
+	}
+
+}
+
+Test(sf_memsuit_student,realloc_smaller_block_content_consistency, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	char * x = sf_malloc(sizeof(char)*100);
+	char * y = sf_malloc(sizeof(char)*5);
+	int i;
+	char a = 'a';
+	for(i=0;i<5;i++)
+	{
+		*(x+i) = a;
+		*(y+i) = a++;
+	}
+	x = sf_realloc(x,5);
+	for(i=0;i<5;i++)
+	{
+		cr_assert(*(x+i) == *(y+i), "Content after realloc is not consistent!");
+	}
+
+}
+Test(sf_memsuit_student,realloc_size_0, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	char * x = sf_malloc(sizeof(char)*100);
+	x = sf_realloc(x,0);
+	//realloc to 0 size is same as freeing the block
+	cr_assert(x==NULL, "Pointer was expected to be freed but isn't");
+
+}
+
+
+Test(sf_memsuite_student, free_invalid_block_size, .init = sf_mem_init, .fini = sf_mem_fini, .signal = SIGABRT) {
+	sf_errno = 0;
+	//because of the two zeroes, block_size is always a multiple of 16, so we'll test for block_size <32
+	void *x = sf_malloc(sizeof(int));
+	sf_header *hp = (sf_header *)((char *)x - sizeof(sf_footer));
+	hp->info.block_size = 0;
+	sf_free(x);
+}
+
+Test(sf_memsuite_student, free_block_size_less_than_requested_size, .init = sf_mem_init, .fini = sf_mem_fini, .signal = SIGABRT) {
+	sf_errno = 0;
+	void *x = sf_malloc(sizeof(int));//32
+	sf_header *hp = (sf_header *)((char *)x - sizeof(sf_footer));
+	hp->info.requested_size = 25;//25+8 = 33 > block_size of 32
+	//block_size should always be at least 8 bytes more than the requested size (header info)
+	sf_free(x);
+}
+
+Test(sf_memsuite_student, coalescing_into_one_big_block, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	void *x = sf_malloc(sizeof(int));
+    void *y = sf_malloc(sizeof(long)*200);
+    void *z = sf_malloc(sizeof(short)*34);
+    sf_free(x);
+    sf_free(z);
+    sf_free(y);
+
+    sf_header *X = (sf_header*)(x-8);
+
+
+
+    cr_assert(X->info.block_size<<4 == PAGE_SZ - sizeof(sf_prologue) - sizeof(sf_epilogue)
+    	, "Did not collesce successfully!");
+}
+
+
+
+
+
+
+
+
