@@ -331,6 +331,42 @@ Test(sf_memsuite_student, coalescing_into_one_big_block, .init = sf_mem_init, .f
     	, "Did not collesce successfully!");
 }
 
+Test(sf_memsuite_student, check_freelist_head_after_insertion, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	void *w = sf_malloc(32);
+	sf_malloc(1);
+	void *x = sf_malloc(32);
+	sf_malloc(1);
+    void *y = sf_malloc(32);
+    sf_malloc(1);
+    void *z = sf_malloc(32);
+
+    sf_free(x);
+    sf_free(z);
+    sf_free(y);
+    sf_free(w);
+
+    sf_header *headOfW = (sf_header*)(w-8);
+    sf_free_list_node* size_32_node = find_free_list_for_size(48);
+
+
+
+
+    cr_assert(size_32_node->head.links.next = headOfW
+    	, "Insertion into freelist is out of order!");
+}
+Test(sf_memsuite_student, realloc_same_size, .init = sf_mem_init, .fini = sf_mem_fini)
+{
+	void *w = sf_malloc(32);
+	void *y = sf_realloc(w,32);
+
+    cr_assert(w==y
+    	, "Returned different block than expected");
+}
+
+//////////////////////////////////////////////////
+
+
 
 
 

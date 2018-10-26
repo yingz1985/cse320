@@ -439,7 +439,10 @@ void *sf_realloc(void *pp, size_t rsize) {
         return NULL;
     }
 
+
     sf_header* header = (sf_header*)((sf_block_info*)pp-1);
+    if(header->info.requested_size == rsize)
+        return pp;
     size_t requiredBlockSize = findBlockSize(rsize);
     if(requiredBlockSize > header->info.block_size<<4)
     {
