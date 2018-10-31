@@ -13,6 +13,7 @@
 void printHelpMenu();
 void readToken();
 int continueExecution = 1;
+int CurrentNumberOfTypes;
 
 
 void commandLineInterface()
@@ -21,7 +22,8 @@ void commandLineInterface()
     while(continueExecution)
     {
         line = readline("imp>");
-        if(strcmp(line,"help")==0)
+        char* arg = readArg(line);
+        if(strcmp(arg,"help")==0)
         {
 
             printHelpMenu();
