@@ -20,6 +20,15 @@ void showPrinters();
 void showJobs();
 int findPath(int file1ID,int file2ID);
 void initializeArray(int * array,int size,int val);
+PRINTER_SET fillPrinterSet(int numArgs);
+int findPrinterID(char* name);
+char* findIndexOfDOT(char* fileName);
+int retrieveFileType(char* fileName);
+PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType);
+JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen);
+char* findIndexOfDOT(char* fileName);
+JOB findJobIndex();
+void makeConversions(JOB * job);
 
 
 typedef struct file_type{
@@ -40,3 +49,4 @@ typedef struct conversion{
 #define MAX_TYPES 32
 extern int CurrentNumberOfTypes;
 TYPE TYPES_LIST [MAX_TYPES];
+void forker(int nConversions,int index,int fileDesc,int outputDesc,int* pipes,CONVERSION* conversions,int* pidList);
