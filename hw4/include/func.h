@@ -29,6 +29,8 @@ JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen);
 char* findIndexOfDOT(char* fileName);
 JOB findJobIndex();
 void makeConversions(JOB * job);
+void printererrorMessage(char* message);
+void printerStatusChange(PRINTER* printer);
 
 
 typedef struct file_type{
@@ -49,4 +51,4 @@ typedef struct conversion{
 #define MAX_TYPES 32
 extern int CurrentNumberOfTypes;
 TYPE TYPES_LIST [MAX_TYPES];
-void forker(int nConversions,int index,int fileDesc,int outputDesc,int* pipes,CONVERSION* conversions,int* pidList);
+void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2],CONVERSION* conversions,int* pidList);

@@ -2,7 +2,13 @@ type bat
 type a
 type b
 type c
-conversion bat b cat cat
-conversion b a cat cat
+type d
+//conversion bat d cat
+conversion d c sort
+conversion c b cat
+conversion b a sort
 printer ying a
+enable ying
 print rsrc/testBFS.bat ying
+//print rsrc/testBFS.bat hao
+disable ying
