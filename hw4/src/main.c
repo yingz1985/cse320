@@ -14,16 +14,17 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 
-int continueExecution = 1;
+int continueExecution;
 int CurrentNumberOfTypes;
 int imp_num_printers;
 PRINTER PRINTERS_LIST [MAX_PRINTERS];
 char buffer[60];
 char *bufferHead = buffer;
 char *bufferEnd = buffer;
-unsigned int sizeOfArg = 0;
+unsigned int sizeOfArg;
 PRINTER_SET set;
 char ** argVar;
 int argCount;
@@ -38,35 +39,119 @@ CONVERSION conversionMatrix[32][32];
 
 
 
+void sigchildHandler(int sigchild)
+{
+    pid_t pid;
+    int status;
+    //sigset_t mask_all,prev_all;
+    //sigfillset(&mask_all);
+    while((pid= waitpid(-1,&status,WNOHANG|WUNTRACED))>0)
+    {
+        //sigprocmask(SIG_BLOCK,&mask_all,&prev_all);
 
+        JOB* job = findJobCorrespondedWithPG(pid);
+        printf("received sighchld signal from %d\n",pid);
+        if(job)
+        {
+            if(WIFSTOPPED(status))
+            {
+                printf("received a signal to pause process %d\n",pid);
+                //stopped by a signal, pause
+                changeJobStatus(job,PAUSED);
+            }
+            else if(WIFCONTINUED(status))
+            {
+                printf("received a signal to continue process %d\n",pid);
+                //stopped by a signal, pause
+                changeJobStatus(job,RUNNING);
+            }
+
+            else
+            {
+
+                if(WIFEXITED(status))
+                {
+                    if(WEXITSTATUS(status)==EXIT_SUCCESS)
+                    {
+                        printf("process %d died normally with status %d\n",pid,status);
+                        changeJobStatus(job,COMPLETED);
+                    }
+                    else
+                    {
+                        printf("child terminated abnormally,aborting\n");
+                        changeJobStatus(job,ABORTED);
+                    }
+
+                }
+                else
+                {
+
+                    printf("something went wrong, aborting");
+                    changeJobStatus(job,ABORTED);
+
+
+                }
+                job->chosen_printer->busy = 0;  //no longer busy
+                printerStatusChange(job->chosen_printer);
+                executePendingJobsIfPossible();
+            }
+        }
+
+       // sigprocmask(SIG_SETMASK,&prev_all,NULL);
+
+    }
+    printf("returning from sigchild handler\n");
+}
+JOB * findJobCorrespondedWithPG(pid_t pid)
+{
+    JOB* currentJob = jobQueue;
+    while(currentJob!=NULL)
+    {
+        if(currentJob->pgid == pid)
+        {
+            return currentJob;
+        }
+        currentJob = currentJob->other_info;
+    }
+    return NULL;    //should never be null
+}
 
 void commandLineInterface()
 {
-    char* line;
+
     while(continueExecution)
     {
-        line = readline("imp>");
-        processCommands(line);
-
-        if(line)
+        char* line = readline("imp> ");
+        if(line);
         {
-            free(line);
 
+            processCommands(line);
+            free(line);
         }
 
 
+
     }
-    //showTypes();
+
 
 }
 int parseLine(char*line)
 {
+    int length = lengthOf(line);
     int pos = 0;
-    while(*line != '\0' && *line !='\n')
+    int count = 0;
+
+    while((*line) != '\0' && (*line) !='\n')
     {
+
 
         int white = skipWhiteSpaces(line);
         line+=white;    // skip that many white spaces, could be zero if no white spaces
+        count+=white;
+        if(count>=length){
+            //trailing empty spaces
+            break;
+        }
         char * arg = readArg(line);
         //debug("%s:arg",arg);
         if(pos==argCount)
@@ -76,10 +161,11 @@ int parseLine(char*line)
             argVar = realloc(argVar,argCount*sizeof(char*));
         }
         argVar[pos++] = arg;
-        line+=(bufferEnd-bufferHead-1); //move to next word
+        line+=(bufferEnd-buffer-1); //move to next word
+        count+=(bufferEnd-buffer-1);
 
     }
-    argVar[pos] = NULL;
+    argVar[pos] = "\0";
 
     return pos;
 }
@@ -88,7 +174,7 @@ int findPath(int file1ID,int file2ID)
 
     if(file1ID==file2ID)
     {
-        char** cat = calloc(2,sizeof(char*)*2);
+        char** cat = calloc(2,sizeof(char*));
         cat[0] = "cat";
         CONVERSION* CON = (CONVERSION*)malloc(sizeof(CONVERSION));
         CONVERSION c = {
@@ -126,7 +212,7 @@ int findPath(int file1ID,int file2ID)
                 //if there's an edge, and vertex is unvisited
             {
                 //debug("not null %d%d",v,i);
-                debug("%d%d %s",v,i,conversionMatrix[v][i].path);
+                //debug("%d%d %s",v,i,conversionMatrix[v][i].path);
                 queue[currentElementsQueued++] = i;
                 prev[i] = v;
                 flag[i] = 1;//visited the node
@@ -150,7 +236,7 @@ int findPath(int file1ID,int file2ID)
         while(prev[vertex]!=vertex && prev[vertex!=-1])
         {
             path[i] = conversionMatrix[prev[vertex]][vertex];   //last to first
-            printf("program path %s, args: %s\n",path[i].path,*path[i].argVar);
+            //printf("program path %s, args: %s\n",path[i].path,*path[i].argVar);
             vertex = prev[vertex];
             i++;
         }
@@ -182,12 +268,12 @@ JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen)
     {
         jobQueue = job;
 
-        //printf("%s\n",imp_format_job_status(jobQueue, showBuf, 100));
+
     }
     else
     {
         JOB* currentJob = jobQueue;//first job
-        //printf("%s\n",imp_format_job_status(jobQueue, showBuf, 100));
+
         while(currentJob->other_info!=NULL)
         {
             //while job queue has next job in queue, keep going
@@ -195,8 +281,6 @@ JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen)
         }
         //currentJob.other_info = malloc(sizeof(JOB*));;
         currentJob->other_info = job;  //add job to end of queue
-       // printf("%s\n",imp_format_job_status((JOB*)(currentJob->other_info), showBuf, 100));
-
 
     }
     printf("%s\n",imp_format_job_status(job, showBuf, 100));
@@ -227,8 +311,8 @@ void initializeArray(int * array,int size,int val)
 void processCommands(char*line)
 {
         int numArgs = parseLine(line);
-
-
+        if(!numArgs)
+            return;
 
         if(strcmp(argVar[0],"help")==0 && numArgs==1)
         {
@@ -287,6 +371,7 @@ void processCommands(char*line)
                     eligiblePrinters = set;
             }
 
+            printf("printer set: %x",eligiblePrinters);
             int sourceType = retrieveFileType(argVar[1]);
             if(sourceType!=-1)
             {
@@ -296,13 +381,14 @@ void processCommands(char*line)
                 JOB* jobo = createJob(argVar[1],findIndexOfDOT(argVar[1]),eligiblePrinters,print);
                 if(print)//if found a valid printer
                 {
+
                         makeConversions(jobo);
 
                         printf("create job for %s\n",print->name);
                 }
                 else
                 {
-                    printf("did not find a printer to print, but queueing");
+                    printf("did not find a printer to print, but queueing\n");
                 }
 
                 //did not find printer to print currently, but will queue the job
@@ -339,6 +425,7 @@ void processCommands(char*line)
                     {
                         PRINTERS_LIST[index].enabled = 1;
                         printerStatusChange(&PRINTERS_LIST[index]);
+                        executePendingJobsIfPossible();
                         //if can start job, start
                         //not coded yet
                     }
@@ -403,6 +490,69 @@ void processCommands(char*line)
                 printererrorMessage(error);
             }
         }
+        else if(strcmp(argVar[0],"pause")==0)
+        {
+            if(numArgs==2)
+            {
+                int job_num = atoi(argVar[1]);  //convert string to job_num int
+                JOB* jobo = findJobNum(job_num,RUNNING);
+
+
+                if(jobo)
+                {
+                    //found
+                    int processGroup = jobo->pgid;
+                    printf("process group id: %d\n",processGroup);
+                    //signal(SIGSTOP,pausedHandler);
+                    killpg(processGroup,SIGSTOP);
+
+
+                }
+
+            }
+            else if(numArgs==1)
+            {
+                char* error = "Please supply a job number to pause";
+                printererrorMessage(error);
+            }
+            else
+            {
+                char* error = "Too many arguments entered, command will be ignored";
+                printererrorMessage(error);
+            }
+        }
+        else if(strcmp(argVar[0],"resume")==0)
+        {
+            if(numArgs==2)
+            {
+                int job_num = atoi(argVar[1]);  //convert string to job_num int
+                JOB* jobo = findJobNum(job_num,PAUSED);
+
+
+                if(jobo)
+                {
+                    //found
+                    int processGroup = jobo->pgid;
+                    printf("process group id: %d\n",processGroup);
+                    //signal(SIGSTOP,pausedHandler);
+                    killpg(processGroup,SIGCONT);   //continue processing
+
+
+                }
+
+            }
+            else if(numArgs==1)
+            {
+                char* error = "Please supply a job number to pause";
+                printererrorMessage(error);
+            }
+            else
+            {
+                char* error = "Too many arguments entered, command will be ignored";
+                printererrorMessage(error);
+            }
+        }
+
 
         else if(strcmp(argVar[0],"quit")==0 &&  numArgs==1)
         {
@@ -410,9 +560,97 @@ void processCommands(char*line)
                 continueExecution = 0;
         }
 
+        if(jobQueue)
+            removeFinishedJobs();
+
 
     //free(argVar[0]);
 
+}
+void removeFinishedJobs()
+{
+    JOB* currentJob = jobQueue;
+
+    while(currentJob!=NULL)
+    {
+        struct timeval currentTime;
+        gettimeofday(&currentTime,NULL);
+
+        if(jobQueue->status==COMPLETED || jobQueue->status==ABORTED)
+        {
+            if(currentTime.tv_sec-jobQueue->change_time.tv_sec>60)
+                jobQueue = jobQueue->other_info;
+            //been finished more than a minute ago
+            //if head should be removed, remove head
+        }
+
+        JOB* nextJob = (JOB*)currentJob->other_info;
+        if(nextJob!=NULL &&(nextJob->status==COMPLETED || nextJob->status ==ABORTED))
+        {
+            if(currentTime.tv_sec-jobQueue->change_time.tv_sec>60)
+                currentJob->other_info = nextJob->other_info;
+            //skip over next jobo
+        }
+
+        currentJob = (JOB*)currentJob->other_info;
+
+    }
+}
+JOB* findJobNum(int job_num,JOB_STATUS status)
+{
+    JOB* currentJob = jobQueue;
+    //char * buf = malloc(sizeof(char)*100);
+    while(currentJob!=NULL)//if job not yet performed, check
+    {
+        if(currentJob->jobid==job_num)
+        {
+            if(currentJob->status==status)
+            {
+                return currentJob;//return process group id
+            }
+            else
+            {
+                char* error = (char*)malloc(sizeof(char)*50);
+                sprintf(error,"job currently does not support operation selected");
+                printererrorMessage(error);
+                free(error);
+                return NULL;
+            }
+
+        }
+        currentJob = (JOB*)currentJob->other_info;//go to next jobo
+
+        //search if it's possible to start job
+    }
+
+    return NULL;
+}
+void executePendingJobsIfPossible()
+{
+    JOB* currentJob = jobQueue;
+    //char * buf = malloc(sizeof(char)*100);
+    while(currentJob!=NULL)//if job not yet performed, check
+    {
+        if(currentJob->status==QUEUED)
+        {
+            int sourceType = findFileIndex(currentJob->file_type);
+
+            PRINTER* print = findPrinterToPrint(currentJob->eligible_printers,sourceType);
+
+            if(print==NULL)
+                printf("not available printer\n");
+            else
+            {
+                printf("found printer to print %s\n",print->name);
+                currentJob->chosen_printer = print;
+                makeConversions(currentJob);
+            }
+        }
+
+        currentJob = (JOB*)currentJob->other_info;//go to next job if it's not processing
+
+        //search if it's possible to start job
+    }
 }
 void changeJobStatus(JOB* job,JOB_STATUS status)
 {
@@ -422,7 +660,11 @@ void changeJobStatus(JOB* job,JOB_STATUS status)
 
     job->status = status;
     job->change_time = currentTime;
-    printf("%s\n",imp_format_job_status(job, showBuf, 100));
+    //printf("%s\n",imp_format_job_status(job, showBuf, 100));
+    char* localBuf =imp_format_job_status(job, showBuf, 100);
+    size_t nbytes = lengthOf(localBuf);
+    write(1,localBuf,nbytes);
+    write(1,"\n",1);
 
 }
 void makeConversions(JOB * job)
@@ -432,7 +674,7 @@ void makeConversions(JOB * job)
     //this is the method that makes the processes **
 
     int conversionsNeeded = *(int*)job->chosen_printer->other_info;
-
+    printf("conversions needed %d",conversionsNeeded);
 
     if(conversionsNeeded == 0)
     {
@@ -440,11 +682,8 @@ void makeConversions(JOB * job)
         conversionsNeeded++;
     }
     CONVERSION* localCopy = (CONVERSION*)malloc(conversionsNeeded*sizeof(CONVERSION));
-    int c;
-    if(conversionsNeeded ==1)
-    {
-        c = 2;
-    }
+    int c = conversionsNeeded;
+
     int conversionPipes[c][2];//[conversionsNeeded];    //initially had size 0 array, not allowed
 
     memcpy(localCopy,path,conversionsNeeded*sizeof(CONVERSION));
@@ -456,17 +695,23 @@ void makeConversions(JOB * job)
     int * processList = (int*)malloc(conversionsNeeded*sizeof(int));
 
 
-    //infile = file descripter for first process to convert
     changeJobStatus(job,RUNNING);
+    job->chosen_printer->busy = 1;  //currenty busy
+    printerStatusChange(job->chosen_printer);
 
-    int status = 0;
+
+
+
     if((pid=fork())==0)
     {
+        setpgid(getpid(),getpid()); // get process group id to itself
         //master process
+
+        printf("master process is running%d\n",getpid());
         int infile = open(job->file_name,O_RDONLY);
         int printerDesc = imp_connect_to_printer(job->chosen_printer, 0x0);
-        fprintf(stderr,"connect to printer %d infile %d\n",printerDesc,infile);
-        fflush(stderr);
+        //fprintf(stderr,"connect to printer %d infile %d\n",printerDesc,infile);
+        //fflush(stderr);
 
         //printf("created master process\n");
         //printf("conversions %d\n",conversionsNeeded);
@@ -484,40 +729,59 @@ void makeConversions(JOB * job)
             //opening up pipes before forking
         }
         //printf("forked\n");
+        int status = 0;
         for(int i = 0;i<conversionsNeeded;i++)
         {
 
             //fprintf(stderr,"waiting for %d\n",processList[i]);
-            int p = waitpid(processList[i],&status,0);
-            fprintf(stderr,"return of wait pid %d\n",p);
-            fflush(stderr);
-
-
-            if(WIFEXITED(status))
+            int p = 0;
+            while((p= waitpid(processList[i],&status,0))>0)
             {
-                fprintf(stderr,"child %d exited with status %d\n",processList[i],status);
+                //fprintf(stderr,"return of wait pid %d\n",p);
                 fflush(stderr);
-            }
-            else
-            {
 
-                fprintf(stderr,"child %d terminated abnormally with status %d\n",processList[i],status);
-                fflush(stderr);
-                changeJobStatus(job,ABORTED);
-                _exit(EXIT_FAILURE);
+
+                if(WIFEXITED(status))
+                {
+                    if(WEXITSTATUS(status)==EXIT_SUCCESS)
+                    {
+                        fprintf(stderr,"child %d exited with status %d\n",processList[i],status);
+                        fflush(stderr);
+                    }
+                    else
+                    {
+                        printf("something went wrong,master process exiting w/ failure\n");
+                        _exit(EXIT_FAILURE);
+                    }
+                    //normal exit
+                }
+                else
+                {
+
+                    fprintf(stderr,"child %d terminated abnormally with status %d\n",processList[i],status);
+                    fflush(stderr);
+                    _exit(EXIT_FAILURE);
+                }
             }
+            /*if(p==-1)
+            {
+                    printf("error %d\n",p);
+                    _exit(EXIT_FAILURE);
+            }*/
         }
-        printf("exiting master process, conversions made successfully");
-        changeJobStatus(job,COMPLETED);
+        printf("exiting master process, conversions made successfully\n");
+
+
         _exit(EXIT_SUCCESS);
 
     }
     else
     {
         //main- do nothing
-        printf("main\n");
+        //printf("continueMain\n");
+        signal(SIGCHLD,sigchildHandler);//installed a signal
         job->pgid = pid;//set process group id for jobo
-        setpgid(pid,pid);
+        //setpgid(pid,pid);
         //waitpid(pid,&status,0);
     }
 
@@ -551,6 +815,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
       if(pipe(pipes[index])==-1)
       {
         printf("pipe failed\n");
+
       };
 
 
@@ -559,6 +824,9 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 
         if((pid = fork()) == 0)
         {
+
+            //fprintf(stderr,"child %d's process group id is %d\n",getpid(),getpgrp());
+
 
             //cannot have pipe in child processes
             //it becomes unknown
@@ -667,11 +935,12 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
         else
         {
 
-            //printf("tried to create new process\n");
+            //printf("process %d at index %d\n",pid,index);
 
             *(pidList+index) = pid;
 
             forker(nConversions-1,index+1,fileDesc,outputDesc,pipes,conversions,pidList);
+
 
             //printf("going to wait\n");
             //waitpid(pid,&status,0);
@@ -681,7 +950,10 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 }
 void printerStatusChange(PRINTER* printer)
 {
-    printf("%s\n",imp_format_printer_status(printer, showBuf, 100));
+    char * buf = imp_format_printer_status(printer, showBuf, 100);
+    size_t length = lengthOf(buf);
+    write(1,buf,length);
+    write(1,"\n",1);
 }
 
 void printererrorMessage(char* message)
@@ -697,7 +969,7 @@ PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType)
     {
         unsigned int eligible = set & 0x1;  //if the bit is set
         //printf("set:%x\n",set);
-        //printf("printer name: %s enabled:%d",PRINTERS_LIST[i].name,PRINTERS_LIST[i].enabled);
+        printf("printer name: %s busy: %d enabled:%d\n",PRINTERS_LIST[i].name,PRINTERS_LIST[i].busy,PRINTERS_LIST[i].enabled);
         if(eligible && !PRINTERS_LIST[i].busy && PRINTERS_LIST[i].enabled)  //eligible and not busy
         {
             int dest = findFileIndex(PRINTERS_LIST[i].type);
@@ -723,7 +995,8 @@ PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType)
 int retrieveFileType(char* fileName)
 {
     char* type = findIndexOfDOT(fileName);
-    if(findFileType(type))
+
+    if(type!=NULL && findFileType(type))
     {
         //it is's a valid type
         return findFileIndex(type);
@@ -793,7 +1066,7 @@ void processCommandConversion(int numArgs)
             if(find1&&find2)
             {
 
-                char** argForConvProg = calloc((numArgs-3),(numArgs-3)*sizeof(char*));
+                char** argForConvProg = calloc((numArgs-3),sizeof(char*));
                 memcpy(argForConvProg,argVar+3,(numArgs-3)*sizeof(char*));
                 //argForConvProg = argVar+3;
 
@@ -863,9 +1136,10 @@ void addPrinter(char* printerName,char *fileName)
         int foundFile = findFileType(fileName);
         if(foundFile)
         {
-
+            PRINTER* printer = (PRINTER*)malloc(sizeof(PRINTER));
             PRINTER newPrinter = {imp_num_printers,printerName,fileName,0,0,NULL};
-            PRINTERS_LIST[imp_num_printers++] = newPrinter;
+            *printer = newPrinter;
+            PRINTERS_LIST[imp_num_printers++] = *printer;
             set|= (0x1<<newPrinter.id);
             printerStatusChange(&newPrinter);
             //debug("set of printers %x\nprinter name:%s",set,newPrinter.name);
@@ -926,8 +1200,10 @@ void addType(char *name)
     int found = findFileType(name);
     if(!found)
     {
+        TYPE * type = (TYPE*)malloc(sizeof(TYPE));
         TYPE newType = {CurrentNumberOfTypes,name};
-        TYPES_LIST[CurrentNumberOfTypes++] = newType;
+        *type = newType;
+        TYPES_LIST[CurrentNumberOfTypes++] = *type;
         //debug("type name %s1",name);
     }
     else
@@ -1020,12 +1296,14 @@ void testBFS();
 
 int main(int argc, char *argv[])
 {
+
     showBuf = (char*)malloc(100*sizeof(char));
     argCount = 5;
     jobsCreated = 0;
     jobQueue = NULL;
-
-    argVar = calloc(argCount,argCount*sizeof(char(*)));
+    continueExecution = 1;
+    sizeOfArg = 0;
+    argVar = calloc(argCount,sizeof(char*));//*sizeof(char(*)));
     //conversionMatrix = calloc(MAX_TYPES*MAX_TYPES,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
     memset(conversionMatrix,0,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
     FILE* infile;
@@ -1040,10 +1318,10 @@ int main(int argc, char *argv[])
             case 'i':
                 infile = fopen(optarg,"r");
                 if(infile==NULL)
-                    {
+                {
                         char* error = "failed to open file";
                         printererrorMessage(error);
-                    }
+                }
                 readFromFile = 1;
 
                 break;
@@ -1059,8 +1337,8 @@ int main(int argc, char *argv[])
 
     if(readFromFile)
     {
-        char* line = (char*)calloc(60,sizeof(char)*60);
-        while(fgets(line,60,infile)!=NULL)
+        char* line = (char*)calloc(80,sizeof(char));
+        while(fgets(line,80,infile)!=NULL)
         {
 
             processCommands(line);
@@ -1068,8 +1346,7 @@ int main(int argc, char *argv[])
         //printConversionprograms();
 
     }
-    //showTypes();
-    //sleep(5);
+
     commandLineInterface();
     //testBFS();
     exit(EXIT_SUCCESS);
@@ -1128,7 +1405,7 @@ int lengthOf(char* string)
 
 int isWhiteSpace(char i)
 {
-    if(i==32|| i== '\n' || i=='\t'||i=='\0'||i==' ')
+    if(i==32 || i=='\t'||i==' ')   //don't skip on new line
         return 1;
     return 0;
 }
@@ -1147,7 +1424,7 @@ void readUntilWhitespace(char* line)
     clearBuffer();
     unsigned int size = 0;
     //line+=skipWhiteSpaces(line);
-    while(!isWhiteSpace(*(line+size)))
+    while(!isWhiteSpace(*(line+size)) && *(line+size)!='\0')
     {
 
         //debug("currentChar: %d \n",*(line+size));

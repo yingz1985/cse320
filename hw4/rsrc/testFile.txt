@@ -1,0 +1,11 @@
+The print command sets up a job for printing file_name.
+The specified file name must have an extension that identifies it as one of the
+file types that have previously been declared with the type command.
+If optional printer names are specified, then these printers must previously
+have been declared using the printer command, and they define the set of
+eligible printers for this job.  Only a printer in the set of eligible printers
+for a job should be used for printing that jobs.  Moreover, an eligible printer
+can only be used to print a job if there is a way to convert the file in the
+job to the type that can be printed by that printer.
+If no printer name is specified in the print command, then any declared
+printer is an eligible printer.

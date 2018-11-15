@@ -8,3 +8,4 @@ conversion ps png ps2png
 conversion png pcl png2pcl
 printer alice ps
 printer bob pcl
+quit

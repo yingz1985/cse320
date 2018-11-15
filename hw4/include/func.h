@@ -27,10 +27,15 @@ int retrieveFileType(char* fileName);
 PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType);
 JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen);
 char* findIndexOfDOT(char* fileName);
-JOB findJobIndex();
 void makeConversions(JOB * job);
 void printererrorMessage(char* message);
 void printerStatusChange(PRINTER* printer);
+void commandLineInterface();
+void executePendingJobsIfPossible();
+JOB* findJobNum(int job_num,JOB_STATUS status);
+void changeJobStatus(JOB* job,JOB_STATUS status);
+void removeFinishedJobs();
+JOB * findJobCorrespondedWithPG(pid_t pid);
 
 
 typedef struct file_type{

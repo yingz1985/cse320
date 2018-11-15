@@ -1,0 +1,34 @@
+Successfully forked as daemon
+15 Nov 2018 02:35:34: PID file: spool/ying.pid
+15 Nov 2018 02:35:53: Accepted connection, fd = 4
+15 Nov 2018 02:35:53: Delaying for 24 sec
+15 Nov 2018 02:36:17: Created stream for input
+15 Nov 2018 02:36:17: File type is 'a'
+15 Nov 2018 02:36:17: Saving data to file spool/ying_a_1542267377.866941
+15 Nov 2018 02:36:17: Created stream for output
+15 Nov 2018 02:36:17: Bytes received: 318
+15 Nov 2018 02:36:17: Connection terminated
+15 Nov 2018 02:36:17: Accepted connection, fd = 4
+15 Nov 2018 02:36:17: Delaying for 19 sec
+15 Nov 2018 02:36:36: Created stream for input
+15 Nov 2018 02:36:36: File type is 'a'
+15 Nov 2018 02:36:36: Saving data to file spool/ying_a_1542267396.888316
+15 Nov 2018 02:36:36: Created stream for output
+15 Nov 2018 02:36:36: Bytes received: 318
+15 Nov 2018 02:36:36: Connection terminated
+15 Nov 2018 02:37:00: Accepted connection, fd = 4
+15 Nov 2018 02:37:00: Delaying for 39 sec
+15 Nov 2018 02:37:39: Created stream for input
+15 Nov 2018 02:37:39: File type is 'a'
+15 Nov 2018 02:37:39: Saving data to file spool/ying_a_1542267459.246586
+15 Nov 2018 02:37:39: Created stream for output
+15 Nov 2018 02:37:39: Bytes received: 318
+15 Nov 2018 02:37:39: Connection terminated
+15 Nov 2018 02:37:39: Accepted connection, fd = 4
+15 Nov 2018 02:37:39: Delaying for 20 sec
+15 Nov 2018 02:37:59: Created stream for input
+15 Nov 2018 02:37:59: File type is 'a'
+15 Nov 2018 02:37:59: Saving data to file spool/ying_a_1542267479.265551
+15 Nov 2018 02:37:59: Created stream for output
+15 Nov 2018 02:37:59: Bytes received: 318
+15 Nov 2018 02:37:59: Connection terminated
