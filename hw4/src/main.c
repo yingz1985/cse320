@@ -33,6 +33,8 @@ CONVERSION path[32];
 JOB* jobQueue;
 int jobsCreated;
 char* showBuf;
+int readfile;
+int out;
 
 
 CONVERSION conversionMatrix[32][32];
@@ -1016,6 +1018,8 @@ void makeConversions(JOB * job)
     {
         setpgid(getpid(),getpid()); // get process group id to itself
         //master process
+        if(readfile)
+            close(readfile);    //close file descriptor - no leakks
 
        // printf("master process is running%d\n",getpid());
 
@@ -1046,6 +1050,7 @@ void makeConversions(JOB * job)
 
             //opening up pipes before forking
         }
+
         //printf("forked\n");
         int p = 0;
         int k = 0;
@@ -1093,6 +1098,10 @@ void makeConversions(JOB * job)
         //close(outputDesc);
         //close(fileDesc);
         //closing ports
+        close(outputDesc);
+        if(out!=-1)
+            close(out);
+        close(infile);//close file descriptors
         if(k)
             _exit(EXIT_FAILURE);
 
@@ -1144,23 +1153,10 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
     if(nConversions>0)
     {
 
-      //if(pipe(pipes[index])==-1)
-      {
-        //_exit(EXIT_FAILURE);
-         //printf("pipe failed\n");
 
-      };
-     // close(pipes[index][0]);
-      //close(pipes[index][1]);
-//*/
-
-
-        //printf("created pipe %d\n",index);
 
         if((pid = fork()) == 0)
         {
-
-            //fprintf(stderr,"child %d's process group id is %d\n",getpid(),getpgrp());
 
 
             //cannot have pipe in child processes
@@ -1172,9 +1168,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             if(nConversions==1) //output redirection
             {
                 //output to printer descriptor
-                /*fprintf(stderr,"flushing to printer %d\n",getpid());
-                fflush(stderr);*/
-                //just print
+
 
                 int d = dup2(outputDesc,1) ;
                 if(d==-1)
@@ -1192,7 +1186,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             {
                 //fprintf(stderr,"piping output %d\n",index);
 
-                close(outputDesc);  //not using printer
+                //close(outputDesc);  //not using printer
                 int d = dup2(pipes[index][1],1);
                 close(pipes[index][0]);    //close read-side of current pipe
 
@@ -1209,6 +1203,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 
 
             }
+            close(outputDesc);
 
 
             if(!index)//input redirection
@@ -1234,7 +1229,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             {
                 //fprintf(stderr,"reading from previous %d \n",index);
                 //fflush(stderr);
-                close(fileDesc);//close input file
+                //close(fileDesc);//close input file
                 close(pipes[index-1][1]);//close previous output to enable reading
                 int d = dup2(pipes[index-1][0],0);  //take input from previous output
 
@@ -1248,6 +1243,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 
                 //read from output of previous pipe
             }
+            close(fileDesc);
             //printf("numConv: %d path:%s arg:%s\n",nConversions-1,conversions[nConversions-1].path,*(conversions[nConversions-1].argVar));
             /*if(index==(index+nConversions-1))
                 {
@@ -1586,6 +1582,7 @@ void addType(char *name)
         char* error = (char*)malloc(sizeof(char)*50);
         sprintf(error,"type %s has already been declared",name);
         printererrorMessage(error);
+        free(name);
         free(error);
     }
 }
@@ -1696,14 +1693,16 @@ int main(int argc, char *argv[])
     argVar = calloc(argCount,sizeof(char*));//*sizeof(char(*)));
     //conversionMatrix = calloc(MAX_TYPES*MAX_TYPES,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
     memset(conversionMatrix,0,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
-    FILE* infile;
-    //FILE* outfile;
-    int outfile;
+    FILE* infile = NULL;
+    FILE* outf = NULL;
+    readfile = 0;
+    //int outfile;
     //int desc;
     CurrentNumberOfTypes = 0;
     imp_num_printers = 0;
     char optval;
     int readFromFile = 0;
+    out = -1;
     while(optind < argc)
     {
         if((optval = getopt(argc, argv, "i:o:")) != -1) {
@@ -1716,22 +1715,28 @@ int main(int argc, char *argv[])
                         printererrorMessage(error);
                 }
                 else
+                {
+                    readfile = fileno(infile);
                     readFromFile = 1;
+
+                }
 
                 break;
             case 'o':
 
-                //outfile = fopen(optarg,"w");
-                outfile = open(optarg,O_WRONLY|O_CREAT|O_TRUNC,777);
-                if(outfile!=-1)
+                outf = fopen(optarg,"w");
+                //outfile = open(optarg,O_WRONLY|O_CREAT|O_TRUNC,777);
+                //if(outfile!=-1)
+                if(outf)
                 {
-                    int d = dup2(outfile,STDERR_FILENO);
-                    printf("stardard error redirected %d\n",d);
-                    fprintf(stderr,"standard error \n");
-                    //print to standard error
-                    //close(fileno(outfile));
-                    //close(outfile);
+                     dup2(fileno(outf),STDERR_FILENO);
+                     out = fileno(outf);
 
+
+                }
+                else
+                {
+                    printf("error %d\n",errno);
                 }
 
                 break;
@@ -1767,6 +1772,8 @@ int main(int argc, char *argv[])
         //printConversionprograms();
 
     }
+    if(infile!=NULL)
+        fclose(infile);//done with file
 
     commandLineInterface();
     //testBFS();
