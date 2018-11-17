@@ -36,6 +36,8 @@ JOB* findJobNum(int job_num,JOB_STATUS status);
 void changeJobStatus(JOB* job,JOB_STATUS status);
 void removeFinishedJobs();
 JOB * findJobCorrespondedWithPG(pid_t pid);
+void freeStructures();
+int isNum(char* c);
 
 
 typedef struct file_type{
@@ -56,4 +58,5 @@ typedef struct conversion{
 #define MAX_TYPES 32
 extern int CurrentNumberOfTypes;
 TYPE TYPES_LIST [MAX_TYPES];
-void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2],CONVERSION* conversions,int* pidList);
+void forker(int nConversions,int index,int fileDesc,int desc,int pipes[][2],CONVERSION* conversions,int* pidList);
+//void forker(int nConversions,int index,JOB*job,int pipes[][2],CONVERSION* conversions,int* pidList);

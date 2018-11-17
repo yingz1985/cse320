@@ -18,5 +18,3 @@ conversion c d dc1
 conversion g h gh1
 printer ying h
 printer hao a
-print file.s ying
-print ma.a hao

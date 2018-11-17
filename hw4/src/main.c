@@ -37,31 +37,48 @@ char* showBuf;
 
 CONVERSION conversionMatrix[32][32];
 
+sigset_t mask_child, prev_one;
+
+
 
 
 void sigchildHandler(int sigchild)
 {
     pid_t pid;
     int status;
-    //sigset_t mask_all,prev_all;
-    //sigfillset(&mask_all);
-    while((pid= waitpid(-1,&status,WNOHANG|WUNTRACED))>0)
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask,SIGCHLD);
+
+    while((pid= waitpid(-1,&status,WNOHANG|WUNTRACED|WCONTINUED))>0)
     {
-        //sigprocmask(SIG_BLOCK,&mask_all,&prev_all);
+
+        sigprocmask(SIG_BLOCK,&mask,NULL);
 
         JOB* job = findJobCorrespondedWithPG(pid);
-        printf("received sighchld signal from %d\n",pid);
         if(job)
         {
-            if(WIFSTOPPED(status))
+
+            if(WIFSIGNALED(status))//terminated by a signal sigterm
             {
-                printf("received a signal to pause process %d\n",pid);
+               // printf("received a signal to cancel process %d\n",pid);
+                //stopped by a signal, pause
+                //if(job->status==PAUSED) killpg(pid,SIGCONT);
+                changeJobStatus(job,ABORTED);
+                job->chosen_printer->busy = 0;  //no longer busy
+                printerStatusChange(job->chosen_printer);
+                executePendingJobsIfPossible();
+
+            }
+            else if(WIFSTOPPED(status))
+            {
+             //   printf("received a signal to pause process %d\n",pid);
                 //stopped by a signal, pause
                 changeJobStatus(job,PAUSED);
             }
             else if(WIFCONTINUED(status))
             {
-                printf("received a signal to continue process %d\n",pid);
+                //printf("received a signal to continue process %d\n",pid);
                 //stopped by a signal, pause
                 changeJobStatus(job,RUNNING);
             }
@@ -73,12 +90,12 @@ void sigchildHandler(int sigchild)
                 {
                     if(WEXITSTATUS(status)==EXIT_SUCCESS)
                     {
-                        printf("process %d died normally with status %d\n",pid,status);
+                        //printf("process %d died normally with status %d\n",pid,status);
                         changeJobStatus(job,COMPLETED);
                     }
                     else
                     {
-                        printf("child terminated abnormally,aborting\n");
+                        //printf("child terminated abnormally,aborting\n");
                         changeJobStatus(job,ABORTED);
                     }
 
@@ -86,7 +103,7 @@ void sigchildHandler(int sigchild)
                 else
                 {
 
-                    printf("something went wrong, aborting");
+                    //printf("something went wrong, aborting");
                     changeJobStatus(job,ABORTED);
 
 
@@ -97,11 +114,13 @@ void sigchildHandler(int sigchild)
             }
         }
 
-       // sigprocmask(SIG_SETMASK,&prev_all,NULL);
+        sigprocmask(SIG_UNBLOCK,&mask,NULL);
 
     }
-    printf("returning from sigchild handler\n");
+    //printf("returning from sigchild handler\n");
 }
+
+
 JOB * findJobCorrespondedWithPG(pid_t pid)
 {
     JOB* currentJob = jobQueue;
@@ -122,12 +141,19 @@ void commandLineInterface()
     while(continueExecution)
     {
         char* line = readline("imp> ");
-        if(line);
+
+        if(line)
         {
 
             processCommands(line);
             free(line);
         }
+        else
+        {
+            continueExecution = 0;
+        }
+
+
 
 
 
@@ -165,7 +191,7 @@ int parseLine(char*line)
         count+=(bufferEnd-buffer-1);
 
     }
-    argVar[pos] = "\0";
+    argVar[pos] = NULL; //null pointer at the end
 
     return pos;
 }
@@ -176,13 +202,18 @@ int findPath(int file1ID,int file2ID)
     {
         char** cat = calloc(2,sizeof(char*));
         cat[0] = "cat";
-        CONVERSION* CON = (CONVERSION*)malloc(sizeof(CONVERSION));
+        cat[1] = NULL;
+        //CONVERSION* CON = (CONVERSION*)malloc(sizeof(CONVERSION));
+
         CONVERSION c = {
                         file1ID,file2ID,
                         *cat,cat
                     };
-        *CON = c;
-        path[0] = *CON; //path of 1 that contains cat
+        //*CON = c;
+
+        path[0] = c; //path of 1 that contains cat
+
+        free(cat);
         return 0;   //zero conversions needed
 
     }
@@ -230,7 +261,7 @@ int findPath(int file1ID,int file2ID)
     }
     if(found!=-1)
     {
-        printf("found path");
+        //printf("found path");
         int vertex = file2ID;
         int i = 0;
         while(prev[vertex]!=vertex && prev[vertex!=-1])
@@ -282,8 +313,14 @@ JOB* createJob(char* file_name,char*file_type,PRINTER_SET set,PRINTER *chosen)
         //currentJob.other_info = malloc(sizeof(JOB*));;
         currentJob->other_info = job;  //add job to end of queue
 
+
     }
-    printf("%s\n",imp_format_job_status(job, showBuf, 100));
+
+    char* localBuf =imp_format_job_status(job, showBuf, 140);
+    size_t nbytes = lengthOf(localBuf);
+    write(2,localBuf,nbytes);
+    write(2,"\n",1);
+
     return job;
 
 
@@ -295,7 +332,12 @@ void showJobs()
     //char * buf = malloc(sizeof(char)*100);
     while(currentJob!=NULL)//while has other info
     {
-        printf("%s\n",imp_format_job_status(currentJob, showBuf, 100));
+        //printf("%s\n",imp_format_job_status(currentJob, showBuf, 100));
+
+        char* localBuf =imp_format_job_status(currentJob, showBuf, 140);
+        size_t nbytes = lengthOf(localBuf);
+        write(2,localBuf,nbytes);
+        write(2,"\n",1);
         currentJob = (JOB*)currentJob->other_info;
     }
    // free(buf);
@@ -308,16 +350,26 @@ void initializeArray(int * array,int size,int val)
         array[i] = val;
     }
 }
+
 void processCommands(char*line)
 {
         int numArgs = parseLine(line);
         if(!numArgs)
             return;
 
-        if(strcmp(argVar[0],"help")==0 && numArgs==1)
+        if(strcmp(argVar[0],"help")==0 )
         {
-
-            printHelpMenu();
+            if(numArgs==1)
+                printHelpMenu();
+            else
+            {
+                char*error = "extra arguments not needed were entered";
+                printererrorMessage(error);
+            }
+            for(int i = 0;i<numArgs;i++)
+            {
+                free(argVar[i]);
+            }
         }
         else if(strcmp(argVar[0],"type")==0)
         {
@@ -326,16 +378,23 @@ void processCommands(char*line)
             {
                     char* error = "requires type argument";
                     printererrorMessage(error);
+                    free(argVar[0]);
             }
             else if (numArgs>2)
             {
-                char* error = "extra arguments not needed was entered";
+                char* error = "extra arguments not needed were entered";
                 printererrorMessage(error);
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
             }
             else
             {
 
                 addType(argVar[1]);
+                free(argVar[0]);//name is used
+
 
             }
 
@@ -346,65 +405,137 @@ void processCommands(char*line)
         }
         else if(strcmp(argVar[0],"conversion")==0)
         {
-            processCommandConversion(numArgs);
+
+            if(numArgs>=4)
+            {
+
+                processCommandConversion(numArgs);
+                executePendingJobsIfPossible();
+                for(int i = 0;i<numArgs;i++)
+                {
+                    if(i!=3)
+                        free(argVar[i]);//3 is conversion program name, still used
+                }
+            }
+            else
+            {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
+                char*error="extra arguments not needed were entered";
+                printererrorMessage(error);
+            }
         }
         else if(strcmp(argVar[0],"printers")==0)
         {
-            showPrinters();
+            if(numArgs==1)
+            {
+                free(argVar[0]);
+                showPrinters();
+            }
+            else
+            {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
+                char*error="extra arguments not needed were entered";
+                printererrorMessage(error);
+            }
         }
         else if(strcmp(argVar[0],"jobs")==0)
         {
-            showJobs();
+            if(numArgs==1)
+            {
+                free(argVar[0]);
+                if(jobQueue)
+                    removeFinishedJobs();
+                showJobs();
+            }
+            else
+            {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
+                char*error="extra arguments not needed were entered";
+                printererrorMessage(error);
+            }
+
         }
         else if(strcmp(argVar[0],"print")==0)
         {
 
+            int continuePrint = 1;
             PRINTER_SET eligiblePrinters = 0;
             if(numArgs>2)
             {
                     eligiblePrinters = fillPrinterSet(numArgs);
+                    if(!eligiblePrinters)
+                    {
+                        char*error = "one or more printers are not declared";
+                        printererrorMessage(error);
+                        continuePrint = 0;
+
+                    }
 
             }
                 //if optional printer names are specified
+            else if(numArgs==2)
+            {
+                    eligiblePrinters = ANY_PRINTER;
+            }
             else
             {
-                    eligiblePrinters = set;
+                continuePrint = 0;
+                char*error = "not enough arguments were entered";
+                printererrorMessage(error);
+
             }
+            free(argVar[0]);
+            if(continuePrint){
 
-            printf("printer set: %x",eligiblePrinters);
-            int sourceType = retrieveFileType(argVar[1]);
-            if(sourceType!=-1)
-            {
-                PRINTER* print = findPrinterToPrint(eligiblePrinters,sourceType);
 
-                if(print==NULL)printf("not available printer");
-                JOB* jobo = createJob(argVar[1],findIndexOfDOT(argVar[1]),eligiblePrinters,print);
-                if(print)//if found a valid printer
+                int sourceType = retrieveFileType(argVar[1]);
+                if(sourceType!=-1)
                 {
+                    PRINTER* print = findPrinterToPrint(eligiblePrinters,sourceType);
 
-                        makeConversions(jobo);
 
-                        printf("create job for %s\n",print->name);
+                    JOB* jobo = createJob(argVar[1],findIndexOfDOT(argVar[1]),eligiblePrinters,print);
+                    if(print)//if found a valid printer
+                    {
+
+                            makeConversions(jobo);
+
+                            //printf("create job for %s\n",print->name);
+                    }
+
+                        //printf("did not find a printer to print, but queueing\n");
+
+
+                    //did not find printer to print currently, but will queue the job
+
+
                 }
                 else
                 {
-                    printf("did not find a printer to print, but queueing\n");
+
+                    char* error = (char*)malloc(sizeof(char)*50);
+                    sprintf(error,"file extension of %s is not declared",argVar[1]);
+                    printererrorMessage(error);
+                    free(argVar[1]);
+                    free(error);
                 }
 
-                //did not find printer to print currently, but will queue the job
-                //showJobs();
+                for(int i = 2;i<numArgs;i++)
+                {
 
-            }
-            else
-            {
-                char* error = (char*)malloc(sizeof(char)*50);
-                sprintf(error,"file extension of %s is not declared",argVar[1]);
-                printererrorMessage(error);
-                free(error);
-            }
-
+                    free(argVar[i]);    //free everything but the name
+                }
             //create job to be queued
-
+            }
 
         }
         else if(strcmp(argVar[0],"enable")==0)
@@ -438,14 +569,21 @@ void processCommands(char*line)
                     printererrorMessage(error);
                     free(error);
                 }
+                free(argVar[0]);
+                free(argVar[1]);
             }
             else if(numArgs>2)
             {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
                 char* error = "too many arguments entered, command will be ignore";
                 printererrorMessage(error);
             }
             else if(numArgs<2)
             {
+                free(argVar[0]);
                 char* error = "Please supply a printer to enable";
                 printererrorMessage(error);
             }
@@ -473,19 +611,27 @@ void processCommands(char*line)
                 }
                 else
                 {
+
                     char* error = (char*)malloc(sizeof(char)*50);
                     sprintf(error,"printer %s has not yet been declared",argVar[1]);
                     printererrorMessage(error);
                     free(error);
                 }
+                free(argVar[0]);
+                free(argVar[1]);
             }
             else if(numArgs>2)
             {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
                 char* error = "too many arguments entered, command will be ignore";
                 printererrorMessage(error);
             }
             else if(numArgs<2)
             {
+                free(argVar[0]);
                 char* error = "Please supply a printer to disable";
                 printererrorMessage(error);
             }
@@ -494,29 +640,103 @@ void processCommands(char*line)
         {
             if(numArgs==2)
             {
-                int job_num = atoi(argVar[1]);  //convert string to job_num int
-                JOB* jobo = findJobNum(job_num,RUNNING);
-
-
-                if(jobo)
+                int num = isNum(argVar[1]);
+                if(num)
                 {
-                    //found
-                    int processGroup = jobo->pgid;
-                    printf("process group id: %d\n",processGroup);
-                    //signal(SIGSTOP,pausedHandler);
-                    killpg(processGroup,SIGSTOP);
+                    int job_num = atoi(argVar[1]);
+
+                    JOB* jobo = findJobNum(job_num,RUNNING);
 
 
+                    if(jobo)
+                    {
+                        //found
+                        int processGroup = jobo->pgid;
+                        printf("process group id: %d\n",processGroup);
+                        //signal(SIGSTOP,pausedHandler);
+                        killpg(processGroup,SIGSTOP);
+
+
+                    }
                 }
+                else
+                {
+                    char* error = "did not pass in a valid job number";
+                    printererrorMessage(error);
+                }
+                free(argVar[0]);
+                free(argVar[1]);
 
             }
             else if(numArgs==1)
             {
+                free(argVar[0]);
                 char* error = "Please supply a job number to pause";
                 printererrorMessage(error);
             }
             else
             {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
+                char* error = "Too many arguments entered, command will be ignored";
+                printererrorMessage(error);
+            }
+        }
+        else if(strcmp(argVar[0],"cancel")==0)
+        {
+
+            if(numArgs==2)
+            {
+                int num = isNum(argVar[1]);
+                if(num)
+                {
+                    int job_num = atoi(argVar[1]);  //convert string to job_num int
+
+                    JOB* jobo = findJobNum(job_num,ABORTED);
+
+                    if(jobo)    //if found a job
+                    {
+                        if(jobo->status!=QUEUED)
+                        {
+                            //found
+                            int processGroup = jobo->pgid;
+
+                            kill(0-processGroup,SIGTERM);//TERMINATE PROCESS
+                            if(jobo->status==PAUSED) kill(0-processGroup,SIGCONT);
+
+
+
+                        }
+                        else
+                        {
+                            jobo->status = ABORTED;
+                            changeJobStatus(jobo,ABORTED);
+                        }
+                    }
+                }
+                else
+                {
+                    char*error= "did not pass in a valid job number";
+                    printererrorMessage(error);
+                }
+                free(argVar[0]);
+                free(argVar[1]);
+
+            }
+            else if(numArgs==1)
+            {
+                free(argVar[0]);
+                char* error = "Please supply a job number to pause";
+                printererrorMessage(error);
+            }
+            else
+            {
+                for(int i = 0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
                 char* error = "Too many arguments entered, command will be ignored";
                 printererrorMessage(error);
             }
@@ -525,43 +745,79 @@ void processCommands(char*line)
         {
             if(numArgs==2)
             {
-                int job_num = atoi(argVar[1]);  //convert string to job_num int
-                JOB* jobo = findJobNum(job_num,PAUSED);
-
-
-                if(jobo)
+                int num = isNum(argVar[1]);
+                if(num)
                 {
-                    //found
-                    int processGroup = jobo->pgid;
-                    printf("process group id: %d\n",processGroup);
-                    //signal(SIGSTOP,pausedHandler);
-                    killpg(processGroup,SIGCONT);   //continue processing
+                    int job_num = atoi(argVar[1]);  //convert string to job_num int
+                    JOB* jobo = findJobNum(job_num,PAUSED);
 
+
+                    if(jobo)
+                    {
+                        //found
+                        int processGroup = jobo->pgid;
+
+                        killpg(processGroup,SIGCONT);   //continue processing
+
+
+                    }
 
                 }
+                else
+                {
+                    char*error= "did not pass in a valid job number";
+                    printererrorMessage(error);
+                }
+                    free(argVar[0]);
+                    free(argVar[1]);
 
             }
             else if(numArgs==1)
             {
+                free(argVar[0]);
                 char* error = "Please supply a job number to pause";
                 printererrorMessage(error);
             }
             else
             {
+                for(int i =0;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }
                 char* error = "Too many arguments entered, command will be ignored";
                 printererrorMessage(error);
             }
         }
 
 
-        else if(strcmp(argVar[0],"quit")==0 &&  numArgs==1)
+        else if(strcmp(argVar[0],"quit")==0 )
         {
+            if(numArgs==1)
+            {
                 free(argVar[0]);
                 continueExecution = 0;
+                //freeStructures();
+            }
+            else
+            {
+                for(int i = 0;i<numArgs;i++)
+                    free(argVar[i]);
+                char* error = "too many arguments were entered, command will be ignored";
+                printererrorMessage(error);
+            }
+        }
+        else
+        {
+            char* error="invalid command";
+            printererrorMessage(error);
+            for(int i = 0;i<numArgs;i++)
+                free(argVar[i]);
         }
 
         if(jobQueue)
             removeFinishedJobs();
+
+
 
 
     //free(argVar[0]);
@@ -576,24 +832,43 @@ void removeFinishedJobs()
         struct timeval currentTime;
         gettimeofday(&currentTime,NULL);
 
-        if(jobQueue->status==COMPLETED || jobQueue->status==ABORTED)
-        {
-            if(currentTime.tv_sec-jobQueue->change_time.tv_sec>60)
-                jobQueue = jobQueue->other_info;
-            //been finished more than a minute ago
-            //if head should be removed, remove head
-        }
-
         JOB* nextJob = (JOB*)currentJob->other_info;
-        if(nextJob!=NULL &&(nextJob->status==COMPLETED || nextJob->status ==ABORTED))
+        while(nextJob!=NULL &&(nextJob->status==COMPLETED || nextJob->status ==ABORTED))
         {
-            if(currentTime.tv_sec-jobQueue->change_time.tv_sec>60)
+
+            if((currentTime.tv_sec-nextJob->change_time.tv_sec)>60)
+            {
+                //printf("clearing job %d\n",nextJob->jobid);
+                free(nextJob->file_name);
                 currentJob->other_info = nextJob->other_info;
+                free(nextJob);
+               // printf("current %d next is %d\n",currentJob->jobid,((JOB*)(currentJob->other_info))->jobid);
+                nextJob = currentJob->other_info;
+            }
+            else
+                nextJob = NULL;
             //skip over next jobo
         }
 
         currentJob = (JOB*)currentJob->other_info;
 
+    }
+    if(jobQueue && (jobQueue->status==COMPLETED || jobQueue->status==ABORTED))
+    {
+        struct timeval currentTime;
+        gettimeofday(&currentTime,NULL);
+        if((currentTime.tv_sec-jobQueue->change_time.tv_sec)>60)
+        {
+            //printf("clearing job%d\n",jobQueue->jobid);
+            JOB* temp = jobQueue;
+            free(jobQueue->file_name);
+
+            jobQueue = jobQueue->other_info;
+            free(temp);
+
+            //been finished more than a minute ago
+            //if head should be removed, remove head
+        }
     }
 }
 JOB* findJobNum(int job_num,JOB_STATUS status)
@@ -604,17 +879,35 @@ JOB* findJobNum(int job_num,JOB_STATUS status)
     {
         if(currentJob->jobid==job_num)
         {
-            if(currentJob->status==status)
+            if(status==ABORTED)
             {
-                return currentJob;//return process group id
+                if(currentJob->status!=status && currentJob->status!=COMPLETED)
+                {//current job is not aborted nor completed
+                    return currentJob;//return process group id
+                }
+                else
+                {
+                    char* error = (char*)malloc(sizeof(char)*50);
+                    sprintf(error,"job currently does not support operation selected");
+                    printererrorMessage(error);
+                    free(error);
+                    return NULL;
+                }
             }
             else
             {
-                char* error = (char*)malloc(sizeof(char)*50);
-                sprintf(error,"job currently does not support operation selected");
-                printererrorMessage(error);
-                free(error);
-                return NULL;
+                if(currentJob->status==status)
+                {
+                    return currentJob;//return process group id
+                }
+                else
+                {
+                    char* error = (char*)malloc(sizeof(char)*50);
+                    sprintf(error,"job currently does not support operation selected");
+                    printererrorMessage(error);
+                    free(error);
+                    return NULL;
+                }
             }
 
         }
@@ -622,8 +915,21 @@ JOB* findJobNum(int job_num,JOB_STATUS status)
 
         //search if it's possible to start job
     }
-
+    char* error = "invalid job";
+    printererrorMessage(error);
     return NULL;
+}
+int isNum(char*string)
+{
+    int i = 0;
+    while(*(string+i))
+    {
+        char chara = *(string+i);
+        if(!(chara>='0' && chara<='9'))
+            return 0;
+        i++;
+    }
+    return 1;
 }
 void executePendingJobsIfPossible()
 {
@@ -637,11 +943,11 @@ void executePendingJobsIfPossible()
 
             PRINTER* print = findPrinterToPrint(currentJob->eligible_printers,sourceType);
 
-            if(print==NULL)
-                printf("not available printer\n");
-            else
+            //if(print==NULL)
+               // printf("not available printer\n");
+            if(print!=NULL)
             {
-                printf("found printer to print %s\n",print->name);
+                //printf("found printer to print %s\n",print->name);
                 currentJob->chosen_printer = print;
                 makeConversions(currentJob);
             }
@@ -661,10 +967,10 @@ void changeJobStatus(JOB* job,JOB_STATUS status)
     job->status = status;
     job->change_time = currentTime;
     //printf("%s\n",imp_format_job_status(job, showBuf, 100));
-    char* localBuf =imp_format_job_status(job, showBuf, 100);
+    char* localBuf =imp_format_job_status(job, showBuf, 140);
     size_t nbytes = lengthOf(localBuf);
-    write(1,localBuf,nbytes);
-    write(1,"\n",1);
+    write(2,localBuf,nbytes);
+    write(2,"\n",1);
 
 }
 void makeConversions(JOB * job)
@@ -674,12 +980,13 @@ void makeConversions(JOB * job)
     //this is the method that makes the processes **
 
     int conversionsNeeded = *(int*)job->chosen_printer->other_info;
-    printf("conversions needed %d",conversionsNeeded);
-
+    //printf("conversions needed %d",conversionsNeeded);
+    //int zero = 0;
     if(conversionsNeeded == 0)
     {
-        printf("no conversions needed\n");
+        //printf("no conversions needed\n");
         conversionsNeeded++;
+       // zero++;
     }
     CONVERSION* localCopy = (CONVERSION*)malloc(conversionsNeeded*sizeof(CONVERSION));
     int c = conversionsNeeded;
@@ -702,21 +1009,32 @@ void makeConversions(JOB * job)
 
 
 
+    sigprocmask(SIG_BLOCK,&mask_child,&prev_one);
+
+
     if((pid=fork())==0)
     {
         setpgid(getpid(),getpid()); // get process group id to itself
         //master process
 
-        printf("master process is running%d\n",getpid());
+       // printf("master process is running%d\n",getpid());
+
+        //int printerDesc = imp_connect_to_printer(job->chosen_printer, 0x0);
+        int outputDesc = imp_connect_to_printer(job->chosen_printer, 0x0);
+        if(outputDesc==-1)
+        {
+                    //fprintf(stderr,"cannot connect to printer\n");
+                    _exit(EXIT_FAILURE);
+        }
         int infile = open(job->file_name,O_RDONLY);
-        int printerDesc = imp_connect_to_printer(job->chosen_printer, 0x0);
-        //fprintf(stderr,"connect to printer %d infile %d\n",printerDesc,infile);
-        //fflush(stderr);
+        if(infile==-1)
+        {
+            _exit(EXIT_FAILURE);
+        }
 
-        //printf("created master process\n");
-        //printf("conversions %d\n",conversionsNeeded);
+        sleep(1);
 
-        forker(conversionsNeeded,0,infile,printerDesc,conversionPipes,localCopy,processList);
+        forker(conversionsNeeded,0,infile,outputDesc,conversionPipes,localCopy,processList);
 
 
         for(int i = 0;i<conversionsNeeded-1;i++)
@@ -729,47 +1047,58 @@ void makeConversions(JOB * job)
             //opening up pipes before forking
         }
         //printf("forked\n");
-        int status = 0;
+        int p = 0;
+        int k = 0;
         for(int i = 0;i<conversionsNeeded;i++)
         {
 
             //fprintf(stderr,"waiting for %d\n",processList[i]);
-            int p = 0;
+            int status;
+
             while((p= waitpid(processList[i],&status,0))>0)
             {
-                //fprintf(stderr,"return of wait pid %d\n",p);
+                /*fprintf(stderr,"return of wait pid %d\n",p);
                 fflush(stderr);
-
+*/
 
                 if(WIFEXITED(status))
                 {
                     if(WEXITSTATUS(status)==EXIT_SUCCESS)
                     {
-                        fprintf(stderr,"child %d exited with status %d\n",processList[i],status);
-                        fflush(stderr);
+                        /*fprintf(stderr,"child %d exited with status %d\n",processList[i],status);
+                        fflush(stderr);*/
+
                     }
                     else
                     {
-                        printf("something went wrong,master process exiting w/ failure\n");
-                        _exit(EXIT_FAILURE);
+                        //fprintf(stderr,"something went wrong,master process exiting w/ failure\n");
+                        k = 1;
+                        //_exit(EXIT_FAILURE);
                     }
-                    //normal exit
+                    //normal exit*/
                 }
                 else
                 {
-
-                    fprintf(stderr,"child %d terminated abnormally with status %d\n",processList[i],status);
-                    fflush(stderr);
-                    _exit(EXIT_FAILURE);
+                    k = 1;
+                   /* fprintf(stderr,"child %d terminated abnormally with status %d\n",processList[i],status);
+                    fflush(stderr);*/
+                   // close(infile);
+                   // close(printerDesc);
+                    //_exit(EXIT_FAILURE);
                 }
             }
-            /*if(p==-1)
-            {
-                    printf("error %d\n",p);
-                    _exit(EXIT_FAILURE);
-            }*/
+            //wait to reap all children
+
         }
-        printf("exiting master process, conversions made successfully\n");
+        //close(outputDesc);
+        //close(fileDesc);
+        //closing ports
+        if(k)
+            _exit(EXIT_FAILURE);
+
+
+
+        //printf("exiting master process, conversions made successfully\n");
 
 
         _exit(EXIT_SUCCESS);
@@ -777,12 +1106,15 @@ void makeConversions(JOB * job)
     }
     else
     {
+
         //main- do nothing
         //printf("continueMain\n");
-        signal(SIGCHLD,sigchildHandler);//installed a signal
+        //installed a signal
         job->pgid = pid;//set process group id for jobo
-        //setpgid(pid,pid);
-        //waitpid(pid,&status,0);
+        sigprocmask(SIG_SETMASK,&prev_one,NULL);
+        free(processList);
+        free(localCopy);
+
     }
 
 
@@ -798,11 +1130,11 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 
                 if(pipe(pipes[i])==-1)
                 {
-                    printf("pipe failed\n");
+                    //printf("pipe failed\n");
                     _exit(EXIT_FAILURE);
                 };
-                close(pipes[i][0]); //parent doesn't use pipes so close them
-                close(pipes[i][1]);
+               // close(pipes[i][0]); //parent doesn't use pipes so close them
+               // close(pipes[i][1]);
 
 
             //connect pipes before forking
@@ -812,12 +1144,15 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
     if(nConversions>0)
     {
 
-      if(pipe(pipes[index])==-1)
+      //if(pipe(pipes[index])==-1)
       {
-        printf("pipe failed\n");
+        //_exit(EXIT_FAILURE);
+         //printf("pipe failed\n");
 
       };
-
+     // close(pipes[index][0]);
+      //close(pipes[index][1]);
+//*/
 
 
         //printf("created pipe %d\n",index);
@@ -837,13 +1172,14 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             if(nConversions==1) //output redirection
             {
                 //output to printer descriptor
-                //fprintf(stderr,"flushing to printer %d\n",outputDesc);
-                //fflush(stderr);
+                /*fprintf(stderr,"flushing to printer %d\n",getpid());
+                fflush(stderr);*/
                 //just print
+
                 int d = dup2(outputDesc,1) ;
                 if(d==-1)
                 {
-                    //fprintf(stderr,"bad printer file descriptor %d\n",outputDesc);
+                   // fprintf(stderr,"bad printer file descriptor %d\n",outputDesc);
                     //fflush(stderr);
                     _exit(EXIT_FAILURE);
                 }
@@ -856,7 +1192,7 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             {
                 //fprintf(stderr,"piping output %d\n",index);
 
-
+                close(outputDesc);  //not using printer
                 int d = dup2(pipes[index][1],1);
                 close(pipes[index][0]);    //close read-side of current pipe
 
@@ -880,11 +1216,13 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 
                 //fprintf(stderr,"reading from input file desciptor %d\n",fileDesc);
 
+
+
                 int d = dup2(fileDesc,0);
                 if(d==-1)
                 {
-                    /*fprintf(stderr,"input bad file descriptor %d\n",fileDesc);
-                    fflush(stderr);*/
+                    //fprintf(stderr,"input bad file descriptor %d\n",fileDesc);
+                    //fflush(stderr);
                     _exit(EXIT_FAILURE);
                 }
                 //close(fileDesc);  //close the reading side since we'll read from file
@@ -896,25 +1234,39 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             {
                 //fprintf(stderr,"reading from previous %d \n",index);
                 //fflush(stderr);
+                close(fileDesc);//close input file
                 close(pipes[index-1][1]);//close previous output to enable reading
                 int d = dup2(pipes[index-1][0],0);  //take input from previous output
 
 
                 if(d==-1)
                 {
-                    /*fprintf(stderr,"not first input bad file descriptor index:%d %d\n",index,pipes[index][1]);
-                    fflush(stderr);*/
+                    //fprintf(stderr,"not first input bad file descriptor index:%d %d\n",index,pipes[index][1]);
+                    //fflush(stderr);
                     _exit(EXIT_FAILURE);
                 }
 
                 //read from output of previous pipe
             }
             //printf("numConv: %d path:%s arg:%s\n",nConversions-1,conversions[nConversions-1].path,*(conversions[nConversions-1].argVar));
-
+            /*if(index==(index+nConversions-1))
+                {
+                    close(pipes[index][0]);
+                    close(pipes[index][1]);
+                }
+            if(!index)
+                {
+                    close(pipes[0][0]);
+                    close(pipes[0][1]);
+                }*/
             for(int i = 0;i<(nConversions+index-1);i++)
             {   //close all unused pipes
-                close(pipes[i][0]);
-                close(pipes[i][1]);
+
+                if(i!=index&& i!=(index-1))
+                {
+                    close(pipes[i][0]);
+                    close(pipes[i][1]);
+                }
             }
 
             int execute = execvp(conversions[nConversions-1].path,conversions[nConversions-1].argVar);
@@ -924,12 +1276,12 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
             {
                 _exit(EXIT_FAILURE);
             }
-            _exit(EXIT_FAILURE);
 
 
         }
         else if(pid<0)
         {
+            //printf("failed fork\n");;
             _exit(EXIT_FAILURE);//fork creation failed
         }
         else
@@ -950,15 +1302,18 @@ void forker(int nConversions,int index,int fileDesc,int outputDesc,int pipes[][2
 }
 void printerStatusChange(PRINTER* printer)
 {
-    char * buf = imp_format_printer_status(printer, showBuf, 100);
+    char * buf = imp_format_printer_status(printer, showBuf, 140);
     size_t length = lengthOf(buf);
-    write(1,buf,length);
-    write(1,"\n",1);
+    write(2,buf,length);
+    write(2,"\n",1);
 }
 
 void printererrorMessage(char* message)
 {
-    printf("%s\n",imp_format_error_message(message, showBuf, 100));
+    char* b = imp_format_error_message(message, showBuf, 140);
+    write(2,b,lengthOf(b));
+    write(2,"\n",1);
+    //printf("%s\n",imp_format_error_message(message, showBuf, 100));
 }
 PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType)
 {
@@ -968,19 +1323,18 @@ PRINTER* findPrinterToPrint(PRINTER_SET eligiblePrinters,int sourceType)
     while(i<32&& i<imp_num_printers)
     {
         unsigned int eligible = set & 0x1;  //if the bit is set
-        //printf("set:%x\n",set);
-        printf("printer name: %s busy: %d enabled:%d\n",PRINTERS_LIST[i].name,PRINTERS_LIST[i].busy,PRINTERS_LIST[i].enabled);
+
         if(eligible && !PRINTERS_LIST[i].busy && PRINTERS_LIST[i].enabled)  //eligible and not busy
         {
             int dest = findFileIndex(PRINTERS_LIST[i].type);
-            int * pathLength = (int*)malloc(sizeof(int));
+           // int * pathLength = (int*)malloc(sizeof(int));
 
             int found = findPath(sourceType,dest);
-            *pathLength = found;
+            //*pathLength = found;
             if(found!=-1)
             {
-                    debug("found depth");   //zero is fine too
-                    PRINTERS_LIST[i].other_info = pathLength;
+                    //debug("found depth");   //zero is fine too
+                    *(int*)(PRINTERS_LIST[i].other_info) = found;
                     return &PRINTERS_LIST[i];
             }
         }
@@ -1038,7 +1392,7 @@ PRINTER_SET fillPrinterSet(int numArgs)
 
         if(findPrinter(argVar[i]))
         {
-            printf("%s found a printer\n",argVar[i]);
+            //printf("%s found a printer\n",argVar[i]);
             eligiblePrinters |= (0x1<<(findPrinterID(argVar[i])));
 
 
@@ -1063,29 +1417,35 @@ void processCommandConversion(int numArgs)
 
             int find1 = findFileType(argVar[1]);
             int find2 = findFileType(argVar[2]);
+            //printf("file1:%s%d file2:%s%d\n",argVar[1],find1,argVar[2],find2);
             if(find1&&find2)
             {
 
-                char** argForConvProg = calloc((numArgs-3),sizeof(char*));
-                memcpy(argForConvProg,argVar+3,(numArgs-3)*sizeof(char*));
+                char** argForConvProg = calloc((numArgs-2),sizeof(char*));
+                memcpy(argForConvProg,argVar+3,(numArgs-2)*sizeof(char*));
+                /*for(int i = 3;i<numArgs;i++)
+                {
+                    free(argVar[i]);
+                }*/
                 //argForConvProg = argVar+3;
 
                 int index1 = findFileIndex(argVar[1]);
                 int index2 = findFileIndex(argVar[2]);
-                CONVERSION * conv = (CONVERSION*)malloc(sizeof(CONVERSION));
+                //CONVERSION * conv = (CONVERSION*)malloc(sizeof(CONVERSION));
 
                 CONVERSION c = {
                         index1,index2,
                         argVar[3],argForConvProg
                     };
-                *conv = c;
+                //*conv = c;
 
 
                 //debug("made conversion struct %d %d",index1,index2);
 
-                conversionMatrix[index1][index2] = *conv; //matrix of conversion programs
-                printf("argVar: %s ",*(argVar+3));
-                printf("arg for conversion program %s\n",*c.argVar);
+                conversionMatrix[index1][index2] = c;
+                //*conv; //matrix of conversion programs
+               // printf("argVar: %s ",*(argVar+3));
+               // printf("arg for conversion program %s\n",*c.argVar);
 
 
 
@@ -1107,20 +1467,30 @@ void processCommandConversion(int numArgs)
 
 
 }
+
 void processCommandPrinter(int numArgs)
 {
 
     if(numArgs==3)
     {
+        free(argVar[0]);
         addPrinter(argVar[1],argVar[2]);
     }
     else if(numArgs>3)
     {
+        for(int i = 0;i<numArgs;i++)
+        {
+            free(argVar[i]);
+        }
         char* error = "extra arguments not needed was inputted ";
         printererrorMessage(error);
     }
     else
     {
+        for(int i = 0;i<numArgs;i++)
+        {
+            free(argVar[i]);
+        }
         char* error = "must input both printer name and file type ";
         printererrorMessage(error);
     }
@@ -1136,10 +1506,11 @@ void addPrinter(char* printerName,char *fileName)
         int foundFile = findFileType(fileName);
         if(foundFile)
         {
-            PRINTER* printer = (PRINTER*)malloc(sizeof(PRINTER));
-            PRINTER newPrinter = {imp_num_printers,printerName,fileName,0,0,NULL};
-            *printer = newPrinter;
-            PRINTERS_LIST[imp_num_printers++] = *printer;
+            //PRINTER* printer = (PRINTER*)malloc(sizeof(PRINTER));
+            int* length = (int*)malloc(sizeof(int));
+            PRINTER newPrinter = {imp_num_printers,printerName,fileName,0,0,length};
+            //*printer = newPrinter;
+            PRINTERS_LIST[imp_num_printers++] = newPrinter;
             set|= (0x1<<newPrinter.id);
             printerStatusChange(&newPrinter);
             //debug("set of printers %x\nprinter name:%s",set,newPrinter.name);
@@ -1150,6 +1521,8 @@ void addPrinter(char* printerName,char *fileName)
             sprintf(error,"file type %s is not an accepted type",fileName);
             printererrorMessage(error);
             free(error);
+            free(printerName);
+            free(fileName);
         }
     }
     else
@@ -1157,6 +1530,8 @@ void addPrinter(char* printerName,char *fileName)
         char* error = (char*)malloc(sizeof(char)*50);
         sprintf(error,"printer %s has already been declared",printerName);
         printererrorMessage(error);
+        free(printerName);
+        free(fileName);
         free(error);
 
     }
@@ -1200,17 +1575,18 @@ void addType(char *name)
     int found = findFileType(name);
     if(!found)
     {
-        TYPE * type = (TYPE*)malloc(sizeof(TYPE));
+        //TYPE * type = (TYPE*)malloc(sizeof(TYPE));
         TYPE newType = {CurrentNumberOfTypes,name};
-        *type = newType;
-        TYPES_LIST[CurrentNumberOfTypes++] = *type;
-        //debug("type name %s1",name);
+        //*type = newType;
+        TYPES_LIST[CurrentNumberOfTypes++] = newType;
+
     }
     else
     {
         char* error = (char*)malloc(sizeof(char)*50);
         sprintf(error,"type %s has already been declared",name);
         printererrorMessage(error);
+        free(error);
     }
 }
 int findFileType(char*name)
@@ -1267,7 +1643,12 @@ void showPrinters()
     //char *imp_format_printer_status(PRINTER *printer, char *buf, size_t size);
     for(int i = 0;i<imp_num_printers;i++)
     {
-        printf("%s\n",imp_format_printer_status(&PRINTERS_LIST[i], showBuf, 100));
+        //printf("%s\n",imp_format_printer_status(&PRINTERS_LIST[i], showBuf, 100));
+
+        char* localBuf =imp_format_printer_status(&PRINTERS_LIST[i], showBuf, 140);
+        size_t nbytes = lengthOf(localBuf);
+        write(2,localBuf,nbytes);
+        write(2,"\n",1);
     }
     //free(buf);
 }
@@ -1288,7 +1669,16 @@ void printHelpMenu()
 
 }
 
-void testBFS();
+
+void freeStructures()
+{
+    for(int i = 0;i<imp_num_printers;i++)
+    {
+        free(PRINTERS_LIST[i].other_info);
+        free(PRINTERS_LIST[i].name);
+        free(PRINTERS_LIST[i].type);
+    }
+}
 
 /*
  * "Imprimer" printer spooler.
@@ -1297,7 +1687,7 @@ void testBFS();
 int main(int argc, char *argv[])
 {
 
-    showBuf = (char*)malloc(100*sizeof(char));
+    showBuf = (char*)malloc(140*sizeof(char));
     argCount = 5;
     jobsCreated = 0;
     jobQueue = NULL;
@@ -1307,14 +1697,17 @@ int main(int argc, char *argv[])
     //conversionMatrix = calloc(MAX_TYPES*MAX_TYPES,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
     memset(conversionMatrix,0,MAX_TYPES*MAX_TYPES*sizeof(CONVERSION));
     FILE* infile;
+    //FILE* outfile;
+    int outfile;
+    //int desc;
     CurrentNumberOfTypes = 0;
     imp_num_printers = 0;
     char optval;
     int readFromFile = 0;
     while(optind < argc)
     {
-    	if((optval = getopt(argc, argv, "i:o:")) != -1) {
-    	    switch(optval) {
+        if((optval = getopt(argc, argv, "i:o:")) != -1) {
+            switch(optval) {
             case 'i':
                 infile = fopen(optarg,"r");
                 if(infile==NULL)
@@ -1322,18 +1715,44 @@ int main(int argc, char *argv[])
                         char* error = "failed to open file";
                         printererrorMessage(error);
                 }
-                readFromFile = 1;
+                else
+                    readFromFile = 1;
 
                 break;
-    	    case '?':
-    		  fprintf(stderr, "Usage: %s [-i <cmd_file>] [-o <out_file>]\n", argv[0]);
-    		  exit(EXIT_FAILURE);
-    		  break;
-    	    default:
-    		break;
-    	    }
-    	}
+            case 'o':
+
+                //outfile = fopen(optarg,"w");
+                outfile = open(optarg,O_WRONLY|O_CREAT|O_TRUNC,777);
+                if(outfile!=-1)
+                {
+                    int d = dup2(outfile,STDERR_FILENO);
+                    printf("stardard error redirected %d\n",d);
+                    fprintf(stderr,"standard error \n");
+                    //print to standard error
+                    //close(fileno(outfile));
+                    //close(outfile);
+
+                }
+
+                break;
+
+            case '?':
+              fprintf(stderr, "Usage: %s [-i <cmd_file>] [-o <out_file>]\n", argv[0]);
+              exit(EXIT_FAILURE);
+              break;
+            default:
+            break;
+            }
+        }
+        else
+        {
+            break;
+        }
     }
+
+    sigemptyset(&mask_child);
+    sigaddset(&mask_child, SIGCHLD);
+    signal(SIGCHLD,sigchildHandler);
 
     if(readFromFile)
     {
@@ -1342,7 +1761,9 @@ int main(int argc, char *argv[])
         {
 
             processCommands(line);
+
         }
+        free(line);
         //printConversionprograms();
 
     }
@@ -1351,17 +1772,12 @@ int main(int argc, char *argv[])
     //testBFS();
     exit(EXIT_SUCCESS);
 }
-void testBFS()
-{
-    findPath(0,1);
-    findPath(1,4);
-    findPath(8,5);
-}
+
 
 
 char * argString(char*buf,int size)
 {
-    char* string,*temp;
+    char* string;
     if((string = (char*)malloc(size))==NULL)
     {
         char* error = "memory not allocated for string";
@@ -1370,16 +1786,18 @@ char * argString(char*buf,int size)
     }
     else
     {
-        temp = string;
+        //temp = string;
         //debug("string size:%d",size);
+        int i = 0;
         while(size-- >0)
         {
 
             if(*buf==13)
-                *temp++ = '\0';
+                *(string+i) = '\0';
             else
-                *temp++ = *buf++;
+                *(string+i) = *buf++;
             //debug("%c %d",*(temp-1),*(temp-1));
+            i++;
 
         }
         return string;
@@ -1424,7 +1842,7 @@ void readUntilWhitespace(char* line)
     clearBuffer();
     unsigned int size = 0;
     //line+=skipWhiteSpaces(line);
-    while(!isWhiteSpace(*(line+size)) && *(line+size)!='\0')
+    while(!isWhiteSpace(*(line+size)) && *(line+size)!='\0'&& *(line+size)!='\n')
     {
 
         //debug("currentChar: %d \n",*(line+size));
@@ -1444,4 +1862,3 @@ char* readArg(char* line)   //returns string of only the argument
 
     return argString(buffer,sizeOfArg);
 }
-

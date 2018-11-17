@@ -1,0 +1,79 @@
+Successfully forked as daemon
+16 Nov 2018 21:55:34: PID file: spool/hao.pid
+16 Nov 2018 21:55:41: Accepted connection, fd = 5
+16 Nov 2018 21:55:46: Created stream for input
+16 Nov 2018 21:55:46: File type is 'a'
+16 Nov 2018 21:55:46: Saving data to file spool/hao_a_1542423346.164199
+16 Nov 2018 21:55:46: Created stream for output
+16 Nov 2018 21:55:46: Bytes received: 0
+16 Nov 2018 21:55:46: Connection terminated
+16 Nov 2018 21:56:20: Accepted connection, fd = 5
+16 Nov 2018 21:56:25: Created stream for input
+16 Nov 2018 21:56:25: File type is 'a'
+16 Nov 2018 21:56:25: Saving data to file spool/hao_a_1542423385.823854
+16 Nov 2018 21:56:25: Created stream for output
+16 Nov 2018 21:56:25: Bytes received: 263
+16 Nov 2018 21:56:25: Connection terminated
+16 Nov 2018 22:09:34: Accepted connection, fd = 5
+16 Nov 2018 22:09:39: Created stream for input
+16 Nov 2018 22:09:39: File type is 'a'
+16 Nov 2018 22:09:39: Saving data to file spool/hao_a_1542424179.402730
+16 Nov 2018 22:09:39: Created stream for output
+16 Nov 2018 22:09:39: Bytes received: 263
+16 Nov 2018 22:09:39: Connection terminated
+16 Nov 2018 22:09:54: Accepted connection, fd = 5
+16 Nov 2018 22:09:59: Created stream for input
+16 Nov 2018 22:09:59: File type is 'a'
+16 Nov 2018 22:09:59: Saving data to file spool/hao_a_1542424199.632010
+16 Nov 2018 22:09:59: Created stream for output
+16 Nov 2018 22:09:59: Bytes received: 749
+16 Nov 2018 22:09:59: Connection terminated
+16 Nov 2018 22:10:01: Accepted connection, fd = 5
+16 Nov 2018 22:10:06: Created stream for input
+16 Nov 2018 22:10:06: File type is 'a'
+16 Nov 2018 22:10:06: Saving data to file spool/hao_a_1542424206.61768
+16 Nov 2018 22:10:06: Created stream for output
+16 Nov 2018 22:10:06: Bytes received: 749
+16 Nov 2018 22:10:06: Connection terminated
+16 Nov 2018 22:10:06: Accepted connection, fd = 5
+16 Nov 2018 22:10:11: Created stream for input
+16 Nov 2018 22:10:11: File type is 'a'
+16 Nov 2018 22:10:11: Saving data to file spool/hao_a_1542424211.112180
+16 Nov 2018 22:10:11: Created stream for output
+16 Nov 2018 22:10:11: Bytes received: 749
+16 Nov 2018 22:10:11: Connection terminated
+16 Nov 2018 22:10:11: Accepted connection, fd = 5
+16 Nov 2018 22:10:16: Created stream for input
+16 Nov 2018 22:10:16: File type is 'a'
+16 Nov 2018 22:10:16: Saving data to file spool/hao_a_1542424216.123443
+16 Nov 2018 22:10:16: Created stream for output
+16 Nov 2018 22:10:16: Bytes received: 749
+16 Nov 2018 22:10:16: Connection terminated
+16 Nov 2018 23:16:20: Accepted connection, fd = 5
+16 Nov 2018 23:16:25: Created stream for input
+16 Nov 2018 23:16:25: File type is 'a'
+16 Nov 2018 23:16:25: Saving data to file spool/hao_a_1542428185.10756
+16 Nov 2018 23:16:25: Created stream for output
+16 Nov 2018 23:16:25: Bytes received: 263
+16 Nov 2018 23:16:25: Connection terminated
+16 Nov 2018 23:16:25: Accepted connection, fd = 5
+16 Nov 2018 23:16:30: Created stream for input
+16 Nov 2018 23:16:30: File type is 'a'
+16 Nov 2018 23:16:30: Saving data to file spool/hao_a_1542428190.32433
+16 Nov 2018 23:16:30: Created stream for output
+16 Nov 2018 23:16:30: Bytes received: 263
+16 Nov 2018 23:16:30: Connection terminated
+16 Nov 2018 23:16:30: Accepted connection, fd = 5
+16 Nov 2018 23:16:35: Created stream for input
+16 Nov 2018 23:16:35: File type is 'a'
+16 Nov 2018 23:16:35: Saving data to file spool/hao_a_1542428195.42352
+16 Nov 2018 23:16:35: Created stream for output
+16 Nov 2018 23:16:35: Bytes received: 263
+16 Nov 2018 23:16:35: Connection terminated
+16 Nov 2018 23:16:35: Accepted connection, fd = 5
+16 Nov 2018 23:16:40: Created stream for input
+16 Nov 2018 23:16:40: File type is 'a'
+16 Nov 2018 23:16:40: Saving data to file spool/hao_a_1542428200.51185
+16 Nov 2018 23:16:40: Created stream for output
+16 Nov 2018 23:16:40: Bytes received: 263
+16 Nov 2018 23:16:40: Connection terminated
