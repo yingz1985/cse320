@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <wait.h>
+#include "client_registry.h"
+#include "csapp.h"
+
 
 static void init() {
 #ifndef NO_SERVER
@@ -55,7 +58,7 @@ Test(student_suite, 00_start_server, .timeout = 30) {
     wait(&ret);
     fprintf(stderr, "Server wait() returned = 0x%x\n", ret);
     if(WIFSIGNALED(ret)) {
-	fprintf(stderr, "Server terminated with signal %d\n", WTERMSIG(ret));	
+	fprintf(stderr, "Server terminated with signal %d\n", WTERMSIG(ret));
 	system("cat valgrind.out");
 	if(WTERMSIG(ret) == 9)
 	    cr_assert_fail("Server did not terminate after SIGHUP");
@@ -71,3 +74,64 @@ Test(student_suite, 01_connect, .init = init, .fini = fini, .timeout = 5) {
     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
 }
+Test(student_suite, 02_connect, .init = init, .fini = fini, .timeout = 5) {
+    fprintf(stderr, "server_suite/01_connect\n");
+    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+}
+Test(student_suite, 03_connect, .init = init, .fini = fini, .timeout = 5) {
+    fprintf(stderr, "server_suite/01_connect\n");
+    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+}
+Test(student_suite, 04_connect, .init = init, .fini = fini, .timeout = 5) {
+    fprintf(stderr, "server_suite/01_connect\n");
+    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+}
+Test(student_suite, 05_connect, .init = init, .fini = fini, .timeout = 5) {
+    fprintf(stderr, "server_suite/01_connect\n");
+    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+}
+/*void *registerClientThread(void *arg)
+{
+    creg_register((CLIENT_REGISTRY *)arg, 4);
+    return NULL;
+}
+void *deregisterClientThread(void *arg)
+{
+    creg_unregister((CLIENT_REGISTRY *)arg, 4);
+    return NULL;
+}
+
+
+Test(student_suite, test_register_clients, .init = init, .fini = fini, .timeout = 30) {
+
+    CLIENT_REGISTRY* client = creg_init();
+    pthread_t tid[100];
+    for(int i = 0;i<100;i++)
+    {
+        //void * cmd = &i;
+        if(i%2==0)
+        {
+            pthread_create(&tid[i], NULL, registerClientThread, client);
+        }
+        else
+        {
+            pthread_create(&tid[i], NULL, deregisterClientThread, client);
+        }
+    }
+    for (int i = 0; i < 100; i++)
+       pthread_join(tid[i], NULL);
+
+   cr_assert_eq(client->fd_bits[0], 0, "expected %d, was %d\n", 0, client[0]);
+
+
+   creg_fini();
+
+}
+
+
+*/
+

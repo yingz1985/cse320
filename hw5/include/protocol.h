@@ -38,7 +38,7 @@
  *	      (reply returns value and status)
  *   COMMIT:  Try to commit a transaction
  *            (reply returns status)
- * 
+ *
  * Server-to-client responses:
  *   REPLY:
  *
