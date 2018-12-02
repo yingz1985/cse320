@@ -9,7 +9,7 @@
 
 int proto_send_packet(int fd, XACTO_PACKET *pkt, void *data)
 {
-    //debug("custom send packet");
+
     XACTO_PACKET newPkt = {pkt->type,pkt->status,pkt->null,convert(pkt->size),convert(pkt->timestamp_sec),convert(pkt->timestamp_nsec)};
 
     if(rio_writen(fd,&newPkt,sizeof(XACTO_PACKET))!=sizeof(XACTO_PACKET))
@@ -31,7 +31,7 @@ int proto_send_packet(int fd, XACTO_PACKET *pkt, void *data)
 }
 int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
 {
-    debug("custom recev packet");
+    debug("recv packet from %d",fd);
     XACTO_PACKET networkPkt;
     if(rio_readn(fd,&networkPkt,sizeof(XACTO_PACKET))!=sizeof(XACTO_PACKET))
     {
@@ -47,7 +47,7 @@ int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
 
     if(pkt->size>0)
     {
-        void * data = malloc(sizeof(char)*pkt->size);
+        void * data = calloc((pkt->size+1),sizeof(char));
         if(rio_readn(fd,data,pkt->size)!=pkt->size)
         {
                 free(data);

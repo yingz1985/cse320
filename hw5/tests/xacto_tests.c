@@ -74,26 +74,46 @@ Test(student_suite, 01_connect, .init = init, .fini = fini, .timeout = 5) {
     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
 }
-Test(student_suite, 02_connect, .init = init, .fini = fini, .timeout = 5) {
-    fprintf(stderr, "server_suite/01_connect\n");
-    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
-    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
-}
-Test(student_suite, 03_connect, .init = init, .fini = fini, .timeout = 5) {
-    fprintf(stderr, "server_suite/01_connect\n");
-    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
-    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
-}
-Test(student_suite, 04_connect, .init = init, .fini = fini, .timeout = 5) {
-    fprintf(stderr, "server_suite/01_connect\n");
-    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
-    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
-}
-Test(student_suite, 05_connect, .init = init, .fini = fini, .timeout = 5) {
-    fprintf(stderr, "server_suite/01_connect\n");
-    int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
-    cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
-}
+// Test(student_suite, 02_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 03_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 04_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 05_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 06_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 07_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 08_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
+// Test(student_suite, 09_connect, .init = init, .fini = fini, .timeout = 5) {
+//     fprintf(stderr, "server_suite/01_connect\n");
+//     int ret = system("util/client -p 9999 </dev/null | grep 'Connected to server'");
+//     cr_assert_eq(ret, 0, "expected %d, was %d\n", 0, ret);
+// }
 /*void *registerClientThread(void *arg)
 {
     creg_register((CLIENT_REGISTRY *)arg, 4);

@@ -1,51 +1,51 @@
-==7742== Memcheck, a memory error detector
-==7742== Copyright (C) 2002-2015, and GNU GPL'd, by Julian Seward et al.
-==7742== Using Valgrind-3.11.0 and LibVEX; rerun with -h for copyright info
-==7742== Command: bin/xacto -p 9999
-==7742== Parent PID: 7730
-==7742== 
-==7742== 
-==7742== FILE DESCRIPTORS: 8 open at exit.
-==7742== Open AF_INET socket 5: 0.0.0.0:9999 <-> unbound
-==7742==    at 0x515F5A7: socket (syscall-template.S:84)
-==7742==    by 0x403F6C: open_listenfd (csapp.c:1015)
-==7742==    by 0x4040BE: Open_listenfd (csapp.c:1062)
-==7742==    by 0x4024AD: main (main.c:93)
-==7742== 
-==7742== Open file descriptor 13: /dev/shm/bxf_arena_7728 (deleted)
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 12: /dev/shm/bxf_arena_7728 (deleted)
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 4:
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 3: /home/student/zhang91/hw5/valgrind.out
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 2: /dev/pts/0
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 1: /dev/pts/0
-==7742==    <inherited from parent>
-==7742== 
-==7742== Open file descriptor 0:
-==7742==    <inherited from parent>
-==7742== 
-==7742== 
-==7742== HEAP SUMMARY:
-==7742==     in use at exit: 9 bytes in 2 blocks
-==7742==   total heap usage: 22 allocs, 20 frees, 8,713 bytes allocated
-==7742== 
-==7742== LEAK SUMMARY:
-==7742==    definitely lost: 0 bytes in 0 blocks
-==7742==    indirectly lost: 0 bytes in 0 blocks
-==7742==      possibly lost: 0 bytes in 0 blocks
-==7742==    still reachable: 9 bytes in 2 blocks
-==7742==         suppressed: 0 bytes in 0 blocks
-==7742== Reachable blocks (those to which a pointer was found) are not shown.
-==7742== To see them, rerun with: --leak-check=full --show-leak-kinds=all
-==7742== 
-==7742== For counts of detected and suppressed errors, rerun with: -v
-==7742== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==24417== Memcheck, a memory error detector
+==24417== Copyright (C) 2002-2015, and GNU GPL'd, by Julian Seward et al.
+==24417== Using Valgrind-3.11.0 and LibVEX; rerun with -h for copyright info
+==24417== Command: bin/xacto -p 9999
+==24417== Parent PID: 24405
+==24417== 
+==24417== 
+==24417== FILE DESCRIPTORS: 8 open at exit.
+==24417== Open AF_INET socket 5: 0.0.0.0:9999 <-> unbound
+==24417==    at 0x515F5A7: socket (syscall-template.S:84)
+==24417==    by 0x403EE0: open_listenfd (csapp.c:1015)
+==24417==    by 0x404032: Open_listenfd (csapp.c:1062)
+==24417==    by 0x40243D: main (main.c:93)
+==24417== 
+==24417== Open file descriptor 13: /dev/shm/bxf_arena_24403 (deleted)
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 12: /dev/shm/bxf_arena_24403 (deleted)
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 4:
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 3: /home/student/zhang91/hw5/valgrind.out
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 2: /dev/pts/0
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 1: /dev/pts/0
+==24417==    <inherited from parent>
+==24417== 
+==24417== Open file descriptor 0:
+==24417==    <inherited from parent>
+==24417== 
+==24417== 
+==24417== HEAP SUMMARY:
+==24417==     in use at exit: 129 bytes in 3 blocks
+==24417==   total heap usage: 17 allocs, 14 frees, 8,249 bytes allocated
+==24417== 
+==24417== LEAK SUMMARY:
+==24417==    definitely lost: 0 bytes in 0 blocks
+==24417==    indirectly lost: 0 bytes in 0 blocks
+==24417==      possibly lost: 0 bytes in 0 blocks
+==24417==    still reachable: 129 bytes in 3 blocks
+==24417==         suppressed: 0 bytes in 0 blocks
+==24417== Reachable blocks (those to which a pointer was found) are not shown.
+==24417== To see them, rerun with: --leak-check=full --show-leak-kinds=all
+==24417== 
+==24417== For counts of detected and suppressed errors, rerun with: -v
+==24417== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

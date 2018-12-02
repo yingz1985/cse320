@@ -101,7 +101,7 @@ int main(int argc, char* argv[]){
         connfd = Malloc(sizeof(int));
         *connfd = Accept(listenfd, (SA*)&clientaddr,&client);
         Pthread_create(&threadid,NULL,xacto_client_service,connfd);
-        printf("thread created with %li\n",threadid);
+
 
 
 

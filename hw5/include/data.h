@@ -95,7 +95,7 @@ int blob_compare(BLOB *bp1, BLOB *bp2);
 
 /*
  * Hash function for hashing the content of a blob.
- * 
+ *
  * @param bp  The blob.
  * @return  Hash of the blob.
  */

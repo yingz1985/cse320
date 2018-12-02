@@ -12,17 +12,21 @@ typedef struct client_registry
 
 }CLIENT_REGISTRY;   //an array of 1024 bits
 
+CLIENT_REGISTRY * client_registry;
+
+
 static int numClients;
 int closing;
 sem_t sem;
 
 pthread_mutex_t lock;
+
 CLIENT_REGISTRY *creg_init()
 {
     numClients = 0;
     closing = 0;
 
-    CLIENT_REGISTRY* client = (CLIENT_REGISTRY*)Calloc(sizeof(CLIENT_REGISTRY),1);
+    client_registry= (CLIENT_REGISTRY*)Calloc(1,sizeof(CLIENT_REGISTRY));
     if (pthread_mutex_init(&lock, NULL) != 0)
     {
         debug("mutex init lock failed");
@@ -31,7 +35,7 @@ CLIENT_REGISTRY *creg_init()
 
 
     //initially a client registry with all zero's - no file descriptor used by client sock
-    return client;
+    return client_registry;
 }
 void creg_fini(CLIENT_REGISTRY *cr)
 {
@@ -105,17 +109,20 @@ void creg_wait_for_empty(CLIENT_REGISTRY *cr)
 
 void creg_shutdown_all(CLIENT_REGISTRY *cr)
 {
+    pthread_mutex_lock(&lock);
     closing = 1;
     if(numClients)
     {
         int pending = numClients;
         for(int i = 0 ;i<16;i++)
         {
+            if(!pending) break;
             for(int k = 0;k<64;k++)
             {
+                if(!pending) break;
                 if((cr->fd_bits[i] & (0x1<<k)) && pending)//if file descriptor open
                 {
-                    shutdown(((i*64)+k+3),SHUT_RDWR);
+                    shutdown(((i*64)+k+3),SHUT_RD);
                     debug("closing socket %d",((i*64)+k+3));
                     if(errno!=0)
                         debug("something went wrong");
@@ -124,4 +131,5 @@ void creg_shutdown_all(CLIENT_REGISTRY *cr)
             }
         }
     }
+    pthread_mutex_unlock(&lock);
 }
