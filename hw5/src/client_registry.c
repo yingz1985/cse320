@@ -45,7 +45,6 @@ void creg_fini(CLIENT_REGISTRY *cr)
 }
 void creg_register(CLIENT_REGISTRY *cr, int fd)
 {
-    debug("file desc %d",fd);
     pthread_mutex_lock(&lock);
     numClients++;
     int fd_pos = fd-3;  //0,1,2 are reserved for stdin,stdout,and stderr
@@ -54,7 +53,7 @@ void creg_register(CLIENT_REGISTRY *cr, int fd)
     long bit_index = 0x1<<(fd_pos%64);
     cr->fd_bits[array_num]|=bit_index;
 
-    debug("array:%d, bit %lu set %lu",array_num,bit_index,cr->fd_bits[array_num]);
+    //debug("array:%d, bit %lu set %lu",array_num,bit_index,cr->fd_bits[array_num]);
 
     pthread_mutex_unlock(&lock);
 }
@@ -63,7 +62,7 @@ void creg_register(CLIENT_REGISTRY *cr, int fd)
 void creg_unregister(CLIENT_REGISTRY *cr, int fd)
 {
     pthread_mutex_lock(&lock);
-    debug("file desc %d",fd);
+    //debug("file desc %d",fd);
     numClients--;
 
     if(!numClients && closing)//has no more clients
@@ -80,7 +79,7 @@ void creg_unregister(CLIENT_REGISTRY *cr, int fd)
     long bit_index = 0x1<<(fd_pos%64);
     cr->fd_bits[array_num]^=bit_index;  //flip bit
 
-    debug("array:%d, bit %lu set %lu",array_num,bit_index,cr->fd_bits[array_num]);
+    debug("unregistering %d",fd);
 
     pthread_mutex_unlock(&lock);
 }
@@ -88,7 +87,7 @@ void creg_unregister(CLIENT_REGISTRY *cr, int fd)
 void creg_wait_for_empty(CLIENT_REGISTRY *cr)
 {
     //if(!numClients) numClients++;
-    debug("%d clients",numClients);
+    //debug("%d clients",numClients);
     if(numClients)
     {
         if(sem_init(&sem,0,0)<0)

@@ -12,7 +12,7 @@
 static void terminate(int status);
 
 CLIENT_REGISTRY *client_registry;
-
+int listenfd;
 
 void sighup(int sig)
 {
@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
     char * hostname = NULL;
     char *portNum = NULL;
     int port = -1;
-    int listenfd,* connfd;
+    int * connfd;
     socklen_t client;
     while(optind < argc)
     {
@@ -129,7 +129,7 @@ void terminate(int status) {
     creg_fini(client_registry);
     trans_fini();
     store_fini();
-
+    close(listenfd);
     debug("Xacto server terminating");
     exit(status);
 }

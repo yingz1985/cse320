@@ -14,34 +14,64 @@
 
 CLIENT_REGISTRY * client_registry;
 
-void sendReplyPacket(int fd)
+int sendReplyPacket(int fd,int status)
 {
     struct timeval currentTime;
 
     gettimeofday(&currentTime,NULL);
 
-    XACTO_PACKET pkt = {XACTO_REPLY_PKT,0,0,0,currentTime.tv_sec,currentTime.tv_usec};
-    proto_send_packet(fd, &pkt, NULL);
+    //XACTO_PACKET pkt = {XACTO_REPLY_PKT,status,0,0,currentTime.tv_sec,currentTime.tv_usec};
+    int success = 0;
+    //success = proto_send_packet(fd, &pkt, NULL);
+
+    XACTO_PACKET* pkt = calloc(1,sizeof(XACTO_PACKET));
+    pkt->type = XACTO_REPLY_PKT;
+    pkt->status = status;
+    pkt->null = 0;
+    pkt->size = 0;
+    pkt->timestamp_sec = currentTime.tv_sec;
+    pkt->timestamp_nsec = currentTime.tv_usec;
+    //{XACTO_DATA_PKT,status,!size,size,currentTime.tv_sec,currentTime.tv_usec};
+    success = proto_send_packet(fd, pkt, NULL);
+    free(pkt);
+    return success;
 }
-void sendDataPacket(int fd,BLOB*blob)
+int sendDataPacket(int fd,BLOB*blob,int status)
 {
 
     struct timeval currentTime;
 
     gettimeofday(&currentTime,NULL);
-    int size;
-    if(!blob->size)
+    int size = 0;
+    void* content = NULL;
+    if(blob==NULL)
+    {
         size = 0;
+        content = NULL;
+    }
     else
+    {
         size = blob->size;
+        content = blob->content;
+    }
 
-    XACTO_PACKET pkt = {XACTO_DATA_PKT,0,!size,size,currentTime.tv_sec,currentTime.tv_usec};
-    proto_send_packet(fd, &pkt, blob->content);
 
+    XACTO_PACKET* pkt = calloc(1,sizeof(XACTO_PACKET));
+    pkt->type = XACTO_DATA_PKT;
+    pkt->status = status;
+    pkt->null = !size;
+    pkt->size = size;
+    pkt->timestamp_sec = currentTime.tv_sec;
+    pkt->timestamp_nsec = currentTime.tv_usec;
+    //{XACTO_DATA_PKT,status,!size,size,currentTime.tv_sec,currentTime.tv_usec};
+    int success;
+    success = proto_send_packet(fd, pkt, content);
+    free(pkt);
+    return success;
 }
 KEY* retrieveKey(int fd,XACTO_PACKET* pkt,void**data)
 {
-    int key;
+    int key = 0;
     int check = proto_recv_packet(fd,pkt,data);
                 //data packet
     if(check==-1)
@@ -76,10 +106,13 @@ void *xacto_client_service(void *arg)
     free(arg);
 
     TRANSACTION * transaction = trans_create();
-    void ** data = (void**)malloc(sizeof(char*)*1);
-    void ** value = (void**)malloc(sizeof(char*)*1);
-    XACTO_PACKET *pkt = malloc(sizeof(XACTO_PACKET));
+    void ** data = (void**)calloc(1,sizeof(char*));
+    void ** value = (void**)calloc(1,sizeof(char*));
+    XACTO_PACKET *pkt = calloc(1,sizeof(XACTO_PACKET));
+    BLOB** valueBlob = (BLOB**)calloc(1,sizeof(BLOB*));
 
+    //while(transaction->status == TRANS_PENDING)
+    // int commit = 0;
     while(transaction->status == TRANS_PENDING)
     {
 
@@ -88,7 +121,7 @@ void *xacto_client_service(void *arg)
         if(check==-1)
         {
 
-            debug("PUT packet err");
+            debug("client service err");
             break;
         }
         else
@@ -131,9 +164,10 @@ void *xacto_client_service(void *arg)
                 KEY * hashKey = key_create(keyBlob);//create a hash key from key blob
                 BLOB* valueBlob = blob_create(*value,val);
                 transaction->status = store_put(transaction, hashKey, valueBlob);
+                //free(*data);
 
                 // free(pkt);
-                sendReplyPacket(fd);
+                sendReplyPacket(fd,transaction->status);
 
 
             }
@@ -143,28 +177,42 @@ void *xacto_client_service(void *arg)
                 debug("[%d] GET packet received",fd);
                 KEY* hashKey = retrieveKey(fd,pkt,data);
                 if(hashKey==NULL) break;
-                BLOB** valueBlob = (BLOB**)malloc(sizeof(BLOB*)*1);
+
                 transaction->status = store_get(transaction, hashKey, valueBlob);
 
 
-                sendReplyPacket(fd);
-                sendDataPacket(fd,*valueBlob);
+                sendReplyPacket(fd,transaction->status);
+                sendDataPacket(fd,*valueBlob,transaction->status);
+                char*why = "obtained from store_get";
+                blob_unref(*valueBlob,why);
+                //free(*valueBlob);
+
 
             }
             else//commit
             {
-                debug("[%d] Ending client service",fd);
-                break;
+                debug("[%d] COMMIT packet received",fd);
+
+                //creg_unregister(client_registry, fd);
+                transaction->status = trans_commit(transaction);
+                sendReplyPacket(fd,transaction->status);
+                //char*why = "attempting to commit transaction";
+                //trans_unref(transaction, why);
+
+                //commit = 1;
             }
         }
         store_show();
         trans_show_all();
+
     }
 
     //if commits or aborts, close client connection
     free(pkt);
     free(data);
+    free(valueBlob);
     free(value);
+    debug("[%d] Ending client service",fd);
     creg_unregister(client_registry, fd);
     close(fd);
 
