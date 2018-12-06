@@ -18,35 +18,32 @@ int proto_send_packet(int fd, XACTO_PACKET *pkt, void *data)
     pkt->size = convert(pkt->size);
     pkt->timestamp_sec = convert(pkt->timestamp_sec);
     pkt->timestamp_nsec = convert(pkt->timestamp_nsec);
-    int success = 0;
+
     if(rio_writen(fd,pkt,sizeof(XACTO_PACKET))!=sizeof(XACTO_PACKET))
     {
         //errno = EIO;
-        success = -1;
-        return success;    //not successful
+
+        return -1;    //not successful
     }
     if(size>0)   //if not NULL
     {
         if(rio_writen(fd,data,size)!=size)
         {
            // errno = EIO;
-            success = -1;
-            return success;
+            return -1;
         }
     }
 
 
-    return success;
+    return 0;
 }
 int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
 {
     debug("recv packet from %d",fd);
     //XACTO_PACKET networkPkt;
-    int success = 0;
     if(rio_readn(fd,pkt,sizeof(XACTO_PACKET))!=sizeof(XACTO_PACKET))
     {
-        success = -1;
-        return success;
+        return -1;
     }
 
     // pkt->type = networkPkt.type;
@@ -62,8 +59,7 @@ int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
         if(rio_readn(fd,data,pkt->size)!=pkt->size)
         {
                 free(data);
-                success = -1;
-                return success;
+                return -1;
         }
         *datap = data;
     }
@@ -71,5 +67,5 @@ int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
 
 
 
-    return success;
+    return 0;
 }
