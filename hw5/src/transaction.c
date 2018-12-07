@@ -8,6 +8,7 @@ void trans_init(void)
 
     debug("Initialize transaction manager");
     trans_list.id = 0;
+    pthread_mutex_init(&trans_list.mutex,NULL);
     trans_list.next = &trans_list;
     trans_list.prev = &trans_list;
 
@@ -30,11 +31,12 @@ void trans_fini(void)
  */
 TRANSACTION *trans_create(void)
 {
+    pthread_mutex_lock(&trans_list.mutex);
     TRANSACTION* transaction = calloc(1,sizeof(TRANSACTION));
     transaction->id = trans_list.id++;
     debug("Create new transaction %d",transaction->id);
     char*why = "newly created transaction";
-    trans_ref(transaction,why);
+
     transaction->depends =NULL;
     transaction->waitcnt = 0;
     if ( sem_init(&transaction->sem, 0, 0) == -1 ) {
@@ -44,6 +46,7 @@ TRANSACTION *trans_create(void)
     if ( pthread_mutex_init(&transaction->mutex, NULL ) == -1 ) {
         return NULL;
     }
+    trans_ref(transaction,why); //initialize lock before use
     transaction->next = &trans_list;//points head
     TRANSACTION * cursor = &trans_list;
     while(cursor->next!=&trans_list)
@@ -54,6 +57,7 @@ TRANSACTION *trans_create(void)
     cursor->next = transaction;//cursor points to new transaction
     transaction->prev = cursor;
     //DEPENDENCY * depend = calloc(1,sizeof(DEPENDENCY));   //try null pointer
+    pthread_mutex_unlock(&trans_list.mutex);
     return transaction;
 }
 
@@ -77,7 +81,7 @@ TRANSACTION *trans_ref(TRANSACTION *tp, char *why)
     pthread_mutex_unlock(&tp->mutex);
     return tp;
 }
-
+void release_dependents(TRANSACTION* tp);
 /*
  * Decrease the reference count on a transaction.
  * If the reference count reaches zero, the transaction is freed.
@@ -103,8 +107,9 @@ void trans_unref(TRANSACTION *tp, char *why)
 
         tp->prev->next = tp->next;
         tp->next->prev = tp->prev;
-        pthread_mutex_unlock(&tp->mutex);
 
+        pthread_mutex_unlock(&tp->mutex);
+        release_dependents(tp);
 
         debug("Free transaction %d",tp->id);
         pthread_mutex_destroy(&tp->mutex);
@@ -129,63 +134,66 @@ void trans_add_dependency(TRANSACTION *tp, TRANSACTION *dtp)
 {
     pthread_mutex_lock(&tp->mutex);
     DEPENDENCY * depend = malloc(sizeof(DEPENDENCY));
-    int count = 0;
     int dependent = 0;
     DEPENDENCY* cursor = tp->depends;
-    while(count<tp->waitcnt)
+    while(cursor!=NULL)
     {
         TRANSACTION*transaction = cursor->trans;
         if(transaction->id == dtp->id)// if dtp already depends on tp
+        {
             dependent = 1;
+            break;
+        }
 
         cursor = cursor->next;
-        count++;
 
     }
-
+    pthread_mutex_unlock(&tp->mutex);
     if(!dependent)
     {
+        pthread_mutex_lock(&tp->mutex);
         depend->trans = dtp;
         depend->next = tp->depends;
         tp->depends = depend;
-        tp->waitcnt++;  //one more transaction that waits on tp
+        pthread_mutex_unlock(&tp->mutex);
         debug("Make transaction %d dependent on transaction %d",tp->id,dtp->id);
         char* why = "transaction in dependency";
         trans_ref(dtp,why);
     }
 
-    pthread_mutex_unlock(&tp->mutex);
+    //pthread_mutex_unlock(&tp->mutex);
 
     //tp->dependency
 }
-// typedef struct transaction {
-//   unsigned int id;           // Transaction ID.
-//   unsigned int refcnt;       // Number of references (pointers) to transaction.
-//   TRANS_STATUS status;       // Current transaction status.
-//   DEPENDENCY *depends;       // Singly-linked list of dependencies.
-//   int waitcnt;               // Number of transactions waiting for this one.
-//   sem_t sem;                 // Semaphore to wait for transaction to commit or abort.
-//   pthread_mutex_t mutex;     // Mutex to protect fields.
-//   struct transaction *next;  // Next in list of all transactions
-//   struct transaction *prev;  // Prev in list of all transactions.
-// } TRANSACTION;
 
 void release_dependents(TRANSACTION* tp)
 {
-    int counter = 0;
+
+    pthread_mutex_lock(&tp->mutex);
     DEPENDENCY *depends = tp->depends;
-    while(counter< tp->waitcnt)
+
+    while(depends!=NULL)
     {
+
         DEPENDENCY * temp = depends;
 
-        counter++;
         depends = depends->next;
+        pthread_mutex_unlock(&tp->mutex);
         char*why = "release dependencies";
-        trans_unref(tp,why);
+        trans_unref(temp->trans,why);   //free dependency on trans
+        pthread_mutex_lock(&tp->mutex);
 
         free(temp);
     }
-    debug("Release %d waiters dependent on transaction %d",tp->waitcnt,tp->id);
+    tp->depends = NULL;
+    pthread_mutex_unlock(&tp->mutex);
+}
+
+void waitOnTrans(TRANSACTION * tp)
+{
+    pthread_mutex_lock(&tp->mutex);
+    tp->waitcnt++;
+    pthread_mutex_unlock(&tp->mutex);
 }
 /*
  * Try to commit a transaction.  Committing a transaction requires waiting
@@ -204,37 +212,56 @@ void release_dependents(TRANSACTION* tp)
 TRANS_STATUS trans_commit(TRANSACTION *tp)
 {
     debug("Transaction %d trying to commit",tp->id);
-    int counter =  0 ;
-    DEPENDENCY *depends = tp->depends;
-    while(counter< tp->waitcnt)
+    DEPENDENCY *depends = tp->depends;  //one transaction can ever commit only once
+    int counter = 0;
+    debug("num_transactions waiting %d",tp->waitcnt);
+    while(depends!=NULL)
     {
         debug("Transaction %d checking status of dependency %d",tp->id,counter);
         TRANSACTION*transaction = depends->trans;
-        if(trans_get_status(tp)==TRANS_COMMITTED)
+        if(trans_get_status(transaction)==TRANS_COMMITTED)
         {
             // commited
+            //tp->waitcnt--;
             counter++;
             continue;
         }
-        debug("Transaction %d waiting for dependency %d",tp->id,counter);
-        sem_wait(&transaction->sem);
-        debug("Transaction %d finished waiting for dependency %d",tp->id,counter);
-        if(trans_get_status(tp)==TRANS_ABORTED)
+        if(trans_get_status(transaction)==TRANS_ABORTED)
         {
+            return trans_abort(tp);//already aborted
+        }
+
+        debug("Transaction %d waiting for dependency %d",tp->id,counter);
+        waitOnTrans(transaction);
+        sem_wait(&transaction->sem);
+
+        debug("Transaction %d finished waiting for dependency %d",tp->id,counter);
+        if(trans_get_status(transaction)==TRANS_ABORTED)
+        {
+           // tp->waitcnt--;
             //if any transaction in the dependency list aborts, abort current
             return trans_abort(tp);
 
         }
-        counter++;
+        //tp->waitcnt--;
         depends = depends->next;
+        counter++;
     }
 
 
-    sem_post(&tp->sem);
-    //if(tp->status==TRANS_PENDING)
-    release_dependents(tp);
+    char*why = "commiting transaction";
+
+    //release_dependents(tp);
+    pthread_mutex_lock(&tp->mutex);
     tp->status =    TRANS_COMMITTED;
-    return tp->status;
+    while(tp->waitcnt)
+    {
+        sem_post(&tp->sem);
+        tp->waitcnt--;
+    }
+    pthread_mutex_unlock(&tp->mutex);
+    trans_unref(tp,why);
+    return TRANS_COMMITTED;
 
 }
 
@@ -254,23 +281,32 @@ TRANS_STATUS trans_commit(TRANSACTION *tp)
 TRANS_STATUS trans_abort(TRANSACTION *tp)
 {
     debug("Try to abort transaction %d",tp->id);
-    if(tp->status == TRANS_COMMITTED)
+    if(trans_get_status(tp) == TRANS_COMMITTED)
     {
         debug("FATAL: transaction %d already commited",tp->id);
         exit(0);
     }
     else if(trans_get_status(tp)==TRANS_ABORTED)
     {
-        return tp->status;
+        return TRANS_ABORTED;
     }
     else
     {
+        pthread_mutex_lock(&tp->mutex);
         tp->status = TRANS_ABORTED;
-        sem_post(&tp->sem);
+        debug("transaction %d waitcnt:%d",tp->id,tp->waitcnt);
+        while(tp->waitcnt)
+        {
+            sem_post(&tp->sem);
+            tp->waitcnt--;
+        }
+        pthread_mutex_unlock(&tp->mutex);
     }
     debug("Transaction %d has aborted",tp->id);
-    release_dependents(tp);
-    return trans_get_status(tp);
+    //release_dependents(tp);
+    char*why = "aborting transaction";
+    trans_unref(tp,why);
+    return TRANS_ABORTED;
 }
 
 
@@ -288,7 +324,12 @@ TRANS_STATUS trans_abort(TRANSACTION *tp)
  */
 TRANS_STATUS trans_get_status(TRANSACTION *tp)
 {
-    return tp->status;
+    static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+    TRANS_STATUS status;
+    pthread_mutex_lock(&mtx);
+    status = tp->status;
+    pthread_mutex_unlock(&mtx);
+    return status;
 }
 
 /*
@@ -300,7 +341,6 @@ TRANS_STATUS trans_get_status(TRANSACTION *tp)
  */
 void trans_show(TRANSACTION *tp)
 {
-
     fprintf(stderr,"[id=%d,status=%d,refcnt=%d]",tp->id,trans_get_status(tp),tp->refcnt);
 }
 

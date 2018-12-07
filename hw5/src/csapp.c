@@ -756,12 +756,14 @@ ssize_t rio_readn(int fd, void *usrbuf, size_t n)
     while (nleft > 0) {
         if ((nread = read(fd, bufp+readSoFar, nleft)) < 0) {
             if (errno == EINTR) /* Interrupted by sig handler return */
-            nread = 0;      /* and call read() again */
+            {
+                nread = 0;      /* and call read() again */
+            }
             else
-            return -1;      /* errno set by read() */
+                return -1;      /* errno set by read() */
         }
         else if (nread == 0)
-            break;              /* EOF */
+            return -1;              /* EOF */
         nleft -= nread;
         // if(nleft)   //try not to go to uninitialized bytes
         //     bufp += nread;

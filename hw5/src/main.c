@@ -129,6 +129,7 @@ void terminate(int status) {
     creg_fini(client_registry);
     trans_fini();
     store_fini();
+    shutdown(listenfd,SHUT_RD);
     close(listenfd);
     debug("Xacto server terminating");
     exit(status);

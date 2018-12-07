@@ -16,9 +16,10 @@ CLIENT_REGISTRY * client_registry;
 
 int sendReplyPacket(int fd,int status)
 {
-    struct timeval currentTime;
+    struct timespec currentTime;
+    clock_gettime(CLOCK_REALTIME,&currentTime);
 
-    gettimeofday(&currentTime,NULL);
+    //gettimeofday(&currentTime,NULL);
 
     //XACTO_PACKET pkt = {XACTO_REPLY_PKT,status,0,0,currentTime.tv_sec,currentTime.tv_usec};
     int success = 0;
@@ -30,7 +31,7 @@ int sendReplyPacket(int fd,int status)
     pkt->null = 0;
     pkt->size = 0;
     pkt->timestamp_sec = currentTime.tv_sec;
-    pkt->timestamp_nsec = currentTime.tv_usec;
+    pkt->timestamp_nsec = currentTime.tv_nsec;
     //{XACTO_DATA_PKT,status,!size,size,currentTime.tv_sec,currentTime.tv_usec};
     success = proto_send_packet(fd, pkt, NULL);
     free(pkt);
@@ -39,9 +40,9 @@ int sendReplyPacket(int fd,int status)
 int sendDataPacket(int fd,BLOB*blob,int status)
 {
 
-    struct timeval currentTime;
+    struct timespec currentTime;
+    clock_gettime(CLOCK_REALTIME,&currentTime);
 
-    gettimeofday(&currentTime,NULL);
     int size = 0;
     void* content = NULL;
     if(blob==NULL)
@@ -62,7 +63,7 @@ int sendDataPacket(int fd,BLOB*blob,int status)
     pkt->null = !size;
     pkt->size = size;
     pkt->timestamp_sec = currentTime.tv_sec;
-    pkt->timestamp_nsec = currentTime.tv_usec;
+    pkt->timestamp_nsec = currentTime.tv_nsec;
     //{XACTO_DATA_PKT,status,!size,size,currentTime.tv_sec,currentTime.tv_usec};
     int success;
     success = proto_send_packet(fd, pkt, content);
@@ -84,6 +85,7 @@ KEY* retrieveKey(int fd,XACTO_PACKET* pkt,void**data)
     {
         key = pkt->size;
         debug("[%d] Received key, size %d",fd,pkt->size);
+        debug("packet received at time: %u.%.9u", pkt->timestamp_sec, pkt->timestamp_nsec);
     }
         BLOB* keyBlob = blob_create(*data, key);
         KEY * hashKey = key_create(keyBlob);
@@ -113,15 +115,16 @@ void *xacto_client_service(void *arg)
 
     //while(transaction->status == TRANS_PENDING)
     // int commit = 0;
-    while(transaction->status == TRANS_PENDING)
+    TRANS_STATUS status = transaction->status;
+    while(status == TRANS_PENDING)
     {
 
-
+        debug("transactions waiting on %d: %d",transaction->id,transaction->waitcnt);
         int check = proto_recv_packet(fd,pkt,NULL);
         if(check==-1)
         {
 
-            debug("client service err");
+            status = trans_abort(transaction);   //transaction could be freed after consuming a ref
             break;
         }
         else
@@ -137,7 +140,7 @@ void *xacto_client_service(void *arg)
                 if(check==-1)
                 {
 
-                    //something done fucked up
+                    shutdown(fd,SHUT_RD);
                     debug("DATA key packet err");
                     break;
                 }
@@ -179,7 +182,7 @@ void *xacto_client_service(void *arg)
                 if(hashKey==NULL) break;
 
                 transaction->status = store_get(transaction, hashKey, valueBlob);
-
+                status = transaction->status;
 
                 sendReplyPacket(fd,transaction->status);
                 sendDataPacket(fd,*valueBlob,transaction->status);
@@ -194,8 +197,10 @@ void *xacto_client_service(void *arg)
                 debug("[%d] COMMIT packet received",fd);
 
                 //creg_unregister(client_registry, fd);
-                transaction->status = trans_commit(transaction);
-                sendReplyPacket(fd,transaction->status);
+                status = trans_commit(transaction);
+                if(transaction!=NULL)
+                    transaction->status = status;
+                sendReplyPacket(fd,status);
                 //char*why = "attempting to commit transaction";
                 //trans_unref(transaction, why);
 
@@ -213,8 +218,9 @@ void *xacto_client_service(void *arg)
     free(valueBlob);
     free(value);
     debug("[%d] Ending client service",fd);
-    creg_unregister(client_registry, fd);
     close(fd);
+    creg_unregister(client_registry, fd);
+
 
 
 
