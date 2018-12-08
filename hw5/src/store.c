@@ -288,6 +288,7 @@ MAP_ENTRY* find_map_entry(KEY*key)//0 if found, -1 else
 
 
     }
+    MAP_ENTRY* returned = last;
     if(match)
     {
         debug("Matching entry exists, disposing of redundant key %p [%s]",key,key->blob->prefix);
@@ -298,19 +299,23 @@ MAP_ENTRY* find_map_entry(KEY*key)//0 if found, -1 else
         debug("Create new map entry for key %p [%s] at table index %d",key,key->blob->prefix,index);
         MAP_ENTRY* newEntry = calloc(1,sizeof(MAP_ENTRY));
         if(last)
+        {
             last->next = newEntry;
+
+
+        }
         else
         {
                 table.table[index] = newEntry;
-                last = newEntry;
+                //last = newEntry;
         }
-
+        returned = newEntry;
         newEntry->key = key;
         //versions and next pointer is init to zero's
 
     }
     pthread_mutex_unlock(&table.mutex);
-    return last;
+    return returned;
 }
 
 /*
@@ -365,9 +370,9 @@ TRANS_STATUS store_get(TRANSACTION *tp, KEY *key, BLOB **valuep)
     MAP_ENTRY* entry = find_map_entry(key);
     TRANS_STATUS status;
     if(entry->versions==NULL)
-         status = add_version(entry,tp,key ,valuep,1); //add a null blob
+         status = add_version(entry,tp,entry->key ,valuep,1); //add a null blob
     else
-        status = add_version(entry,tp,key,valuep,1);
+        status = add_version(entry,tp,entry->key,valuep,1);
 
     if(*valuep)
         blob_ref(*valuep,"returning from store_get");

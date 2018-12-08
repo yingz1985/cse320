@@ -133,7 +133,7 @@ void trans_unref(TRANSACTION *tp, char *why)
 void trans_add_dependency(TRANSACTION *tp, TRANSACTION *dtp)
 {
     pthread_mutex_lock(&tp->mutex);
-    DEPENDENCY * depend = malloc(sizeof(DEPENDENCY));
+    DEPENDENCY * depend = calloc(1,sizeof(DEPENDENCY));
     int dependent = 0;
     DEPENDENCY* cursor = tp->depends;
     DEPENDENCY* prev = cursor;
@@ -142,6 +142,7 @@ void trans_add_dependency(TRANSACTION *tp, TRANSACTION *dtp)
         TRANSACTION*transaction = cursor->trans;
         if(transaction->id == dtp->id)// if dtp already depends on tp
         {
+            free(depend);
             dependent = 1;
             break;
         }

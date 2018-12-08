@@ -139,9 +139,8 @@ void *xacto_client_service(void *arg)
                 //data packet
                 if(check==-1)
                 {
-
-                    shutdown(fd,SHUT_RD);
                     debug("DATA key packet err");
+                    shutdown(fd,SHUT_RD);
                     break;
                 }
                 else
