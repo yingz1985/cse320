@@ -17,7 +17,7 @@ CLIENT_REGISTRY * client_registry;
 int sendReplyPacket(int fd,int status)
 {
     struct timespec currentTime;
-    clock_gettime(CLOCK_REALTIME,&currentTime);
+    clock_gettime(CLOCK_MONOTONIC,&currentTime);
 
     //gettimeofday(&currentTime,NULL);
 
@@ -41,7 +41,7 @@ int sendDataPacket(int fd,BLOB*blob,int status)
 {
 
     struct timespec currentTime;
-    clock_gettime(CLOCK_REALTIME,&currentTime);
+    clock_gettime(CLOCK_MONOTONIC,&currentTime);
 
     int size = 0;
     void* content = NULL;

@@ -26,21 +26,21 @@ int main(int argc, char* argv[]){
     // on which the server should listen.
 
     char optval;
-    char * hostname = NULL;
+    //char * hostname = NULL;
     char *portNum = NULL;
     int port = -1;
     int * connfd;
     socklen_t client;
     while(optind < argc)
     {
-        if((optval = getopt(argc, argv, "h:p:q")) != -1) {
+        if((optval = getopt(argc, argv, "p:")) != -1) {
             switch(optval) {
-            case 'h':
+            /*case 'h':
                 hostname = malloc(sizeof(char)*(strlen(optarg)+1));
                 strncpy(hostname,optarg,strlen(optarg)+1);  //plus null terminator
                 //hostname = optarg;
                 printf("hostname: %s",hostname);
-                break;
+                break;*/
             case 'p':
                 for(int i = 0;i<strlen(optarg);i++)
                 {
@@ -56,9 +56,9 @@ int main(int argc, char* argv[]){
                 strncpy(portNum,optarg,strlen(optarg)+1);
                 printf("via port %d",port);
                 break;
-            case 'q':
+            /*case 'q':
                 printf("reading from file");
-                break;
+                break;*/
 
             case '?':
               fprintf(stderr, "Usage: %s [-h <hostname>] [-p <port>] [-q <filename>]\n", argv[0]);
@@ -94,6 +94,7 @@ int main(int argc, char* argv[]){
     struct sockaddr_storage clientaddr;
     pthread_t threadid;
     Signal(SIGHUP,sighup);
+    free(portNum);
     while(1)
     {
 
@@ -129,8 +130,10 @@ void terminate(int status) {
     creg_fini(client_registry);
     trans_fini();
     store_fini();
+
     shutdown(listenfd,SHUT_RD);
     close(listenfd);
+
     debug("Xacto server terminating");
     exit(status);
 }

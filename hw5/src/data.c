@@ -81,7 +81,7 @@ int blob_compare(BLOB *bp1, BLOB *bp2)
 
 int blob_hash(BLOB *bp)
 {
-
+    pthread_mutex_lock(&bp->mutex);
     int i = 0,hash = 5381;
     char* stringToHash = bp->content;
     while((*(stringToHash+i)) )//&& (*(stringToHash+i))!=32)
@@ -90,6 +90,7 @@ int blob_hash(BLOB *bp)
         i++;
     }
     debug("Create hash code %d for blob %s",hash & 0x7FFFFFFF,bp->content);
+    pthread_mutex_unlock(&bp->mutex);
     return (hash & 0x7FFFFFFF);
 }
 

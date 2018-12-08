@@ -179,7 +179,7 @@ void release_dependents(TRANSACTION* tp)
 
         depends = depends->next;
         pthread_mutex_unlock(&tp->mutex);
-        char*why = "release dependencies";
+        char*why = "transaction in dependency";
         trans_unref(temp->trans,why);   //free dependency on trans
         pthread_mutex_lock(&tp->mutex);
 
@@ -195,20 +195,8 @@ void waitOnTrans(TRANSACTION * tp)
     tp->waitcnt++;
     pthread_mutex_unlock(&tp->mutex);
 }
-/*
- * Try to commit a transaction.  Committing a transaction requires waiting
- * for all transactions in its dependency set to either commit or abort.
- * If any transaction in the dependency set abort, then the dependent
- * transaction must also abort.  If all transactions in the dependency set
- * commit, then the dependent transaction may also commit.
- *
- * In all cases, this function consumes a single reference to the transaction
- * object.
- *
- * @param tp  The transaction to be committed.
- * @return  The final status of the transaction: either TRANS_ABORTED,
- * or TRANS_COMMITTED.
- */
+
+
 TRANS_STATUS trans_commit(TRANSACTION *tp)
 {
     debug("Transaction %d trying to commit",tp->id);
@@ -284,7 +272,7 @@ TRANS_STATUS trans_abort(TRANSACTION *tp)
     if(trans_get_status(tp) == TRANS_COMMITTED)
     {
         debug("FATAL: transaction %d already commited",tp->id);
-        exit(0);
+        abort();
     }
     else if(trans_get_status(tp)==TRANS_ABORTED)
     {
