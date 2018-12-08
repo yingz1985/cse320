@@ -79,20 +79,77 @@ void store_fini(void)
     //free versions
 }
 
-TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB*value)
+ // * When a transaction performs a GET or PUT operation for a particular key,
+ // * there is an initial "garbage collection" pass that is made over the version list.
+ // * In the garbage collection pass, all except the most recent committed version
+ // * is removed.  In addition, if any aborted version exists, then it and all later
+ // * versions in the list are removed and their creators are aborted.
+ // * After garbage collection, a version list will consist of at most one committed
+ // * version, followed by some number of pending versions.  Note that if there was
+ // * at least one committed version before garbage collection, there will be exactly
+ // * one committed version afterwards.  Also, if there were only aborted versions
+ // * before garbage collection, then the version list will be empty afterwards.
+void garbage_collection(MAP_ENTRY*map,VERSION* found)
+{
+    TRANS_STATUS status= found->creator->status;
+    if(status==TRANS_COMMITTED)
+    {
+        debug("Removing old committed version (creator=%d)",found->creator->id);
+        VERSION * current = map->versions;
+        VERSION* next;
+        while(current!=found)
+        {
+            next = current->next;
+            version_dispose(current);
+            current = next;
+        }
+        //leave the most committed version
+
+    }
+    else if(status==TRANS_ABORTED)
+    {
+        debug("Aborted version encountered (creator=%d), aborting subsequent versions",found->creator->id);
+
+        VERSION * current = found;
+        VERSION * next;
+        while(current!=NULL )
+        {
+            next = current->next;
+
+            if(trans_get_status(current->creator)!=TRANS_ABORTED)
+            {
+                char* why = "reference to creator for aborting";
+                trans_ref(current->creator,why);
+                trans_abort(current->creator);
+            }
+            version_dispose(current);
+
+            current = next;
+        }
+
+    }
+}
+TRANS_STATUS new_bucket_entry(MAP_ENTRY* map,TRANSACTION* tp, BLOB*value)
+{
+    VERSION* version_to_add = version_create(tp,value);
+    map->versions = version_to_add;
+
+    debug("No previous version");
+    pthread_mutex_unlock(&table.mutex);
+    return tp->status;
+}
+
+TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB**value,int get)
 {
     pthread_mutex_lock(&table.mutex);
     debug("Trying to put version in map entry for key %p [%s]",key,key->blob->prefix);
 
-    VERSION* version_to_add = version_create(tp,value);
+
 
     if(map->versions==NULL)//a newEntry in the map bucket
     {
-        map->versions = version_to_add;
         debug("Add new version for key %p [%s]",key,key->blob->prefix);
-        debug("No previous version");
-        pthread_mutex_unlock(&table.mutex);
-        return tp->status;
+        return new_bucket_entry(map,tp,*value);
     }
     else//already has versions there
     {
@@ -101,6 +158,32 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB*value)
         while(current)
         {
             debug("Examine version %p for key %p [%s]",map->versions,key,key->blob->prefix);
+            if(trans_get_status(current->creator)== TRANS_COMMITTED && current!=map->versions)
+            {
+                garbage_collection(map,current);
+                map->versions = current;
+                //everything before is removed
+
+            }
+            if(trans_get_status(current->creator)== TRANS_ABORTED)
+            {
+                garbage_collection(map,current);
+                if(current==prev)
+                {
+                    map->versions = NULL;
+                    debug("Add new version for key %p [%s]",key,key->blob->prefix);
+                    return new_bucket_entry(map,tp,*value);
+                }
+                else
+                    current = prev;
+
+                //current is now null
+            }
+
+            //if after garbage collection it aborts still create new one
+
+
+
             if(current->creator->id > tp->id)
             {
                 debug("Current transaction ID (%d) is less than version creator (%d) -- aborting",tp->id,current->creator->id);
@@ -118,15 +201,26 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB*value)
                 //last transaction in the list
                 if(current->creator->id == tp->id)
                 {
+                    if(get)
+                    {
+                        *value = current->blob;
+                        if(*value)
+                            blob_ref(*value,"creator of version");
+                    }
+                    VERSION* version_to_add = version_create(tp,*value);
+
                     debug("Replace existing version for key %p [%s]",key,key->blob->prefix);
                     debug("tp=%p(%d), creator=%p(%d)",tp,tp->id,current->creator,current->creator->id);
                     if(current == prev)    //if only one version available
                     {
+                        debug("Add new version for key %p [%s]",key,key->blob->prefix);
                         map->versions = version_to_add;
 
                     }
                     else
                     {
+                        if(!get)
+                            debug("Previous version is %p",map->versions->prev);
                         prev->next = version_to_add;
                     }
 
@@ -135,6 +229,23 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB*value)
                     pthread_mutex_unlock(&table.mutex);
                     return tp->status;
                 }
+                else
+                {
+
+                    if(get)
+                    {
+                        *value = current->blob;
+                        if(*value)
+                            blob_ref(*value,"creator of version");
+                    }
+                    VERSION* version_to_add = version_create(tp,*value);
+                    current->next = version_to_add;
+
+
+                    pthread_mutex_unlock(&table.mutex);
+                    return tp->status;
+                }
+
 
             }
             prev = current;
@@ -142,11 +253,11 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB*value)
         }
 
 
-        prev->next = version_to_add;
-        debug("Add new version for key %p [%s]",key,key->blob->prefix);
+        //prev->next = version_to_add;
+
 
         //map->versions->prev->next = version_to_add;//add to end
-        debug("Previous version is %p",map->versions->prev);
+
 
 
     }
@@ -226,7 +337,7 @@ TRANS_STATUS store_put(TRANSACTION *tp, KEY *key, BLOB *value)
     }
     debug("Put mapping (key=%p [%s] -> value=%p [%s]) in store for transaction 0",key,key->blob->prefix,value,value->prefix);
     MAP_ENTRY* entry = find_map_entry(key);
-    TRANS_STATUS status = add_version(entry,tp,entry->key,value);
+    TRANS_STATUS status = add_version(entry,tp,entry->key,&value,0);
     //blob_unref(value,"");
     return status;
 
@@ -250,7 +361,17 @@ TRANS_STATUS store_put(TRANSACTION *tp, KEY *key, BLOB *value)
 
 TRANS_STATUS store_get(TRANSACTION *tp, KEY *key, BLOB **valuep)
 {
-    return 0;
+    debug("Get mapping of key=%p [%s] in store for transaction %d",key,key->blob->prefix,tp->id);
+    MAP_ENTRY* entry = find_map_entry(key);
+    TRANS_STATUS status;
+    if(entry->versions==NULL)
+         status = add_version(entry,tp,key ,valuep,1); //add a null blob
+    else
+        status = add_version(entry,tp,key,valuep,1);
+
+    if(*valuep)
+        blob_ref(*valuep,"returning from store_get");
+    return status;
 }
 
 /*
@@ -279,7 +400,18 @@ void store_show(void)
                     status_string = "committed";
                 else
                     status_string="aborted";
-                fprintf(stderr," versions: {creator=%d (%s), blob=%p [%s]}}",version->creator->id,status_string,version->blob,version->blob->prefix);
+
+
+                if(version->blob==NULL)
+                    fprintf(stderr," versions: {creator=%d (%s), (NULL blob)}}",version->creator->id,status_string);
+
+                else
+                {
+                    char* content = version->blob->prefix;
+                    fprintf(stderr," versions: {creator=%d (%s), blob=%p [%s]}}",version->creator->id,status_string,version->blob,content);
+
+                }
+
                 version = version->next;
             }
 

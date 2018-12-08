@@ -187,7 +187,9 @@ void *xacto_client_service(void *arg)
                 sendReplyPacket(fd,transaction->status);
                 sendDataPacket(fd,*valueBlob,transaction->status);
                 char*why = "obtained from store_get";
-                blob_unref(*valueBlob,why);
+                if(*valueBlob)
+                    blob_unref(*valueBlob,why);
+                *valueBlob = NULL;
                 //free(*valueBlob);
 
 
