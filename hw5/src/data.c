@@ -49,6 +49,7 @@ BLOB *blob_ref(BLOB *bp, char *why)
 
 void blob_unref(BLOB *bp, char *why)
 {
+    static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
     if(bp==NULL) return;
     pthread_mutex_lock(&bp->mutex);
 
@@ -63,8 +64,11 @@ void blob_unref(BLOB *bp, char *why)
         debug("Free blob %p [%s]",bp,bp->content);
         pthread_mutex_destroy(&bp->mutex);
         //free(bp->prefix);//malloc'd
+        pthread_mutex_lock(&mtx);
         free(bp->content);
         free(bp);
+        bp = NULL;
+        pthread_mutex_unlock(&mtx);
     }
     //free after mutex unlocked
 

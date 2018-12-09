@@ -116,7 +116,7 @@ void *xacto_client_service(void *arg)
     //while(transaction->status == TRANS_PENDING)
     // int commit = 0;
     TRANS_STATUS status = transaction->status;
-    while(status == TRANS_PENDING)
+    while(1)
     {
 
         debug("transactions waiting on %d: %d",transaction->id,transaction->waitcnt);
@@ -124,7 +124,7 @@ void *xacto_client_service(void *arg)
         if(check==-1)
         {
 
-            status = trans_abort(transaction);   //transaction could be freed after consuming a ref
+            //status = trans_abort(transaction);   //transaction could be freed after consuming a ref
             break;
         }
         else
@@ -165,11 +165,14 @@ void *xacto_client_service(void *arg)
                 BLOB* keyBlob = blob_create(*data, key);
                 KEY * hashKey = key_create(keyBlob);//create a hash key from key blob
                 BLOB* valueBlob = blob_create(*value,val);
-                transaction->status = store_put(transaction, hashKey, valueBlob);
+                status = store_put(transaction, hashKey, valueBlob);
+
                 //free(*data);
 
                 // free(pkt);
-                sendReplyPacket(fd,transaction->status);
+                sendReplyPacket(fd,status);
+
+
 
 
             }
@@ -179,17 +182,18 @@ void *xacto_client_service(void *arg)
                 debug("[%d] GET packet received",fd);
                 KEY* hashKey = retrieveKey(fd,pkt,data);
                 if(hashKey==NULL) break;
+                status = store_get(transaction, hashKey, valueBlob);
 
-                transaction->status = store_get(transaction, hashKey, valueBlob);
-                status = transaction->status;
 
-                sendReplyPacket(fd,transaction->status);
-                sendDataPacket(fd,*valueBlob,transaction->status);
+                sendReplyPacket(fd,status);
+                sendDataPacket(fd,*valueBlob,status);
                 char*why = "obtained from store_get";
                 if(*valueBlob)
                     blob_unref(*valueBlob,why);
                 *valueBlob = NULL;
-                //free(*valueBlob);
+
+
+
 
 
             }
@@ -199,10 +203,11 @@ void *xacto_client_service(void *arg)
 
                 //creg_unregister(client_registry, fd);
                 status = trans_commit(transaction);
-                if(transaction!=NULL)
+                if(transaction)
                     transaction->status = status;
                 sendReplyPacket(fd,status);
                 //char*why = "attempting to commit transaction";
+                status = TRANS_COMMITTED;//tried to at least
                 //trans_unref(transaction, why);
 
                 //commit = 1;
@@ -214,14 +219,16 @@ void *xacto_client_service(void *arg)
     }
 
     //if commits or aborts, close client connection
+    if(status!=TRANS_COMMITTED)
+        trans_abort(transaction);
     free(pkt);
     free(data);
     free(valueBlob);
     free(value);
+
     debug("[%d] Ending client service",fd);
     close(fd);
     creg_unregister(client_registry, fd);
-
 
 
 

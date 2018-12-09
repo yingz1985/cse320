@@ -7,8 +7,11 @@
 
 #define convert(data) htonl(data)
 
+
 int proto_send_packet(int fd, XACTO_PACKET *pkt, void *data)
 {
+
+
     debug("sending packet");
     //XACTO_PACKET newPkt = {pkt->type,pkt->status,pkt->null,convert(pkt->size),convert(pkt->timestamp_sec),convert(pkt->timestamp_nsec)};
 
@@ -30,19 +33,24 @@ int proto_send_packet(int fd, XACTO_PACKET *pkt, void *data)
         if(rio_writen(fd,data,size)!=size)
         {
            // errno = EIO;
+
             return -1;
         }
     }
+
 
 
     return 0;
 }
 int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
 {
+
+
     debug("recv packet from %d",fd);
     //XACTO_PACKET networkPkt;
     if(rio_readn(fd,pkt,sizeof(XACTO_PACKET))!=sizeof(XACTO_PACKET))
     {
+
         return -1;
     }
 
@@ -59,12 +67,11 @@ int proto_recv_packet(int fd, XACTO_PACKET *pkt, void **datap)
         if(rio_readn(fd,data,pkt->size)!=pkt->size)
         {
                 free(data);
+
                 return -1;
         }
         *datap = data;
     }
-
-
 
 
     return 0;

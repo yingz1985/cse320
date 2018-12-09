@@ -1,45 +1,38 @@
-==4433== Memcheck, a memory error detector
-==4433== Copyright (C) 2002-2015, and GNU GPL'd, by Julian Seward et al.
-==4433== Using Valgrind-3.11.0 and LibVEX; rerun with -h for copyright info
-==4433== Command: bin/xacto -p 9999
-==4433== Parent PID: 4421
-==4433== 
-==4433== 
-==4433== FILE DESCRIPTORS: 7 open at exit.
-==4433== Open file descriptor 13: /dev/shm/bxf_arena_4419 (deleted)
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 12: /dev/shm/bxf_arena_4419 (deleted)
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 4:
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 3: /home/student/zhang91/hw5/valgrind.out
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 2: /dev/pts/0
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 1: /dev/pts/0
-==4433==    <inherited from parent>
-==4433== 
-==4433== Open file descriptor 0:
-==4433==    <inherited from parent>
-==4433== 
-==4433== 
-==4433== HEAP SUMMARY:
-==4433==     in use at exit: 4 bytes in 1 blocks
-==4433==   total heap usage: 18 allocs, 17 frees, 8,129 bytes allocated
-==4433== 
-==4433== LEAK SUMMARY:
-==4433==    definitely lost: 0 bytes in 0 blocks
-==4433==    indirectly lost: 0 bytes in 0 blocks
-==4433==      possibly lost: 0 bytes in 0 blocks
-==4433==    still reachable: 4 bytes in 1 blocks
-==4433==         suppressed: 0 bytes in 0 blocks
-==4433== Reachable blocks (those to which a pointer was found) are not shown.
-==4433== To see them, rerun with: --leak-check=full --show-leak-kinds=all
-==4433== 
-==4433== For counts of detected and suppressed errors, rerun with: -v
-==4433== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==4184== Memcheck, a memory error detector
+==4184== Copyright (C) 2002-2015, and GNU GPL'd, by Julian Seward et al.
+==4184== Using Valgrind-3.11.0 and LibVEX; rerun with -h for copyright info
+==4184== Command: bin/xacto -p 9999
+==4184== Parent PID: 4172
+==4184== 
+==4184== 
+==4184== FILE DESCRIPTORS: 7 open at exit.
+==4184== Open file descriptor 13: /dev/shm/bxf_arena_4170 (deleted)
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 11: /dev/shm/bxf_arena_4170 (deleted)
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 4:
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 3: /home/student/zhang91/hw5/valgrind.out
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 2: /dev/pts/4
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 1: /dev/pts/4
+==4184==    <inherited from parent>
+==4184== 
+==4184== Open file descriptor 0:
+==4184==    <inherited from parent>
+==4184== 
+==4184== 
+==4184== HEAP SUMMARY:
+==4184==     in use at exit: 0 bytes in 0 blocks
+==4184==   total heap usage: 18 allocs, 18 frees, 8,129 bytes allocated
+==4184== 
+==4184== All heap blocks were freed -- no leaks are possible
+==4184== 
+==4184== For counts of detected and suppressed errors, rerun with: -v
+==4184== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

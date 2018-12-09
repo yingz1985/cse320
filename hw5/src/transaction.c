@@ -1,8 +1,8 @@
 #include "transaction.h"
 #include "debug.h"
 #include <stdlib.h>
-int transactionId;
 
+int transactions;
 void trans_init(void)
 {
 
@@ -11,6 +11,7 @@ void trans_init(void)
     pthread_mutex_init(&trans_list.mutex,NULL);
     trans_list.next = &trans_list;
     trans_list.prev = &trans_list;
+    transactions = 0;
 
 }
 
@@ -32,6 +33,7 @@ void trans_fini(void)
 TRANSACTION *trans_create(void)
 {
     pthread_mutex_lock(&trans_list.mutex);
+    transactions++;
     TRANSACTION* transaction = calloc(1,sizeof(TRANSACTION));
     transaction->id = trans_list.id++;
     debug("Create new transaction %d",transaction->id);
@@ -47,16 +49,21 @@ TRANSACTION *trans_create(void)
         return NULL;
     }
     trans_ref(transaction,why); //initialize lock before use
-    transaction->next = &trans_list;//points head
+    /*transaction->next = &trans_list;//points head
     TRANSACTION * cursor = &trans_list;
     while(cursor->next!=&trans_list)
     {
         cursor = cursor->next;  //advance cursor
     }
-    debug("add transaction after %d",cursor->id);
-    cursor->next = transaction;//cursor points to new transaction
-    transaction->prev = cursor;
+    //debug("add transaction after %d",cursor->id);
+
+    cursor->next = transaction;//cursor points to new transaction*/
+    transaction->prev = trans_list.prev;
+    transaction->prev->next = transaction;
+    transaction->next = &trans_list;
+    trans_list.prev = transaction;
     //DEPENDENCY * depend = calloc(1,sizeof(DEPENDENCY));   //try null pointer
+
     pthread_mutex_unlock(&trans_list.mutex);
     return transaction;
 }
@@ -73,6 +80,7 @@ TRANSACTION *trans_create(void)
  */
 TRANSACTION *trans_ref(TRANSACTION *tp, char *why)
 {
+    if(tp==NULL) return NULL;
     pthread_mutex_lock(&tp->mutex);
 
     tp->refcnt++;
@@ -91,24 +99,31 @@ void release_dependents(TRANSACTION* tp);
  */
 void trans_unref(TRANSACTION *tp, char *why)
 {
+    //static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
     if(tp==NULL) return;
     pthread_mutex_lock(&tp->mutex);
 
     tp->refcnt--;
+
     debug("Decrease reference count on transaction %d (%d -> %d) as %s",tp->id,tp->refcnt+1,tp->refcnt,why);
 
     pthread_mutex_unlock(&tp->mutex);
 
     pthread_mutex_lock(&tp->mutex);
+
     if(!tp->refcnt)
     {
         //if refcnt reached zero
         //has to be removed from transaction list
-
+        transactions--;
         tp->prev->next = tp->next;
         tp->next->prev = tp->prev;
 
         pthread_mutex_unlock(&tp->mutex);
+
+        //pthread_mutex_lock(&mtx);
+
         release_dependents(tp);
 
         debug("Free transaction %d",tp->id);
@@ -119,6 +134,7 @@ void trans_unref(TRANSACTION *tp, char *why)
 
         free(tp);
         tp = NULL;
+        //pthread_mutex_unlock(&mtx);
     }
     else
         pthread_mutex_unlock(&tp->mutex);
@@ -211,7 +227,7 @@ TRANS_STATUS trans_commit(TRANSACTION *tp)
     if(tp->status==TRANS_ABORTED)
     {
         debug("Cannot commit an already aborted transaction");
-        return -1;
+        return tp->status;
     }
     debug("Transaction %d trying to commit",tp->id);
     DEPENDENCY *depends = tp->depends;  //one transaction can ever commit only once
@@ -297,6 +313,9 @@ TRANS_STATUS trans_abort(TRANSACTION *tp)
     }
     else if(trans_get_status(tp)==TRANS_ABORTED)
     {
+        debug("tranaction %d is already aborted",tp->id);
+        char*why = "aborting transaction";
+        trans_unref(tp,why);
         return TRANS_ABORTED;
     }
     else
@@ -362,8 +381,8 @@ void trans_show_all(void)
     fprintf(stderr,"TRANSACTIONS:\n");
     TRANSACTION* head = &trans_list;
     int count = 0;
-    int num_transaction = head->id;
-    while(count<num_transaction)
+
+    while(count<transactions)
     {
         //TRANSACTION* k = head->next;
         trans_show(head->next);

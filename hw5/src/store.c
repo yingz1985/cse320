@@ -1,11 +1,12 @@
 #include "data.h"
 
-#include "transaction.h"
+
 #include "store.h"
 #include "debug.h"
 
 
 struct map table;
+
 // /*
 //  * A map entry represents one entry in the map.
 //  * Each map entry contains associated key, a singly linked list of versions,
@@ -91,7 +92,8 @@ void store_fini(void)
  // * before garbage collection, then the version list will be empty afterwards.
 void garbage_collection(MAP_ENTRY*map,VERSION* found)
 {
-    TRANS_STATUS status= found->creator->status;
+    pthread_mutex_lock(&table.mutex);
+    TRANS_STATUS status= trans_get_status(found->creator);
     if(status==TRANS_COMMITTED)
     {
         debug("Removing old committed version (creator=%d)",found->creator->id);
@@ -116,21 +118,25 @@ void garbage_collection(MAP_ENTRY*map,VERSION* found)
         {
             next = current->next;
 
-            if(trans_get_status(current->creator)!=TRANS_ABORTED)
-            {
+            //if(trans_get_status(current->creator)!=TRANS_ABORTED)
+            //{
                 char* why = "reference to creator for aborting";
                 trans_ref(current->creator,why);
                 trans_abort(current->creator);
-            }
+
+
             version_dispose(current);
 
             current = next;
         }
 
     }
+    pthread_mutex_unlock(&table.mutex);
 }
 TRANS_STATUS new_bucket_entry(MAP_ENTRY* map,TRANSACTION* tp, BLOB*value)
 {
+    if(tp==NULL) return TRANS_ABORTED;
+    pthread_mutex_lock(&table.mutex);
     VERSION* version_to_add = version_create(tp,value);
     map->versions = version_to_add;
 
@@ -149,6 +155,7 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB**value,int
     if(map->versions==NULL)//a newEntry in the map bucket
     {
         debug("Add new version for key %p [%s]",key,key->blob->prefix);
+        pthread_mutex_unlock(&table.mutex);
         return new_bucket_entry(map,tp,*value);
     }
     else//already has versions there
@@ -160,33 +167,52 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB**value,int
             debug("Examine version %p for key %p [%s]",map->versions,key,key->blob->prefix);
             if(trans_get_status(current->creator)== TRANS_COMMITTED && current!=map->versions)
             {
+                pthread_mutex_unlock(&table.mutex);
                 garbage_collection(map,current);
+                pthread_mutex_lock(&table.mutex);
                 map->versions = current;
+                pthread_mutex_unlock(&table.mutex);
                 //everything before is removed
 
             }
-            if(trans_get_status(current->creator)== TRANS_ABORTED)
+            else if(trans_get_status(current->creator)== TRANS_ABORTED)
             {
+                pthread_mutex_unlock(&table.mutex);
                 garbage_collection(map,current);
+                pthread_mutex_lock(&table.mutex);
                 if(current==prev)
                 {
                     map->versions = NULL;
                     debug("Add new version for key %p [%s]",key,key->blob->prefix);
+                    pthread_mutex_unlock(&table.mutex);
                     return new_bucket_entry(map,tp,*value);
                 }
                 else
+                {
                     current = prev;
+                }
+                pthread_mutex_unlock(&table.mutex);
 
                 //current is now null
             }
+            else
+                pthread_mutex_unlock(&table.mutex);
 
             //if after garbage collection it aborts still create new one
 
 
-
+            pthread_mutex_lock(&table.mutex);
             if(current->creator->id > tp->id)
             {
                 debug("Current transaction ID (%d) is less than version creator (%d) -- aborting",tp->id,current->creator->id);
+                //key_dispose(key);//key no longer useful to us
+               // if(!get)
+                {
+                    trans_ref(tp,"reference to current transaction for aborting");
+
+                    blob_unref(*value,"aborting transaction");
+                }
+
                 pthread_mutex_unlock(&table.mutex);
                 return trans_abort(tp);
             }
@@ -248,6 +274,7 @@ TRANS_STATUS add_version(MAP_ENTRY* map,TRANSACTION* tp,KEY*key ,BLOB**value,int
 
 
             }
+
             prev = current;
             current = current->next;
         }
