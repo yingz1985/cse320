@@ -213,8 +213,8 @@ void *xacto_client_service(void *arg)
                 //commit = 1;
             }
         }
-        store_show();
-        trans_show_all();
+        //store_show();
+        //trans_show_all();
 
     }
 
